@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-import { Dot, Flag } from "@/components/ServerTable"
+import { Dot, Flag } from "@/components/NodeMarks"
 import { Input } from "@/components/ui/input"
 import type { Node } from "@/lib/api"
 import { Link } from "@/lib/route"

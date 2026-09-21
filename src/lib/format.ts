@@ -77,14 +77,9 @@ export function duration(seconds: number): string {
   return `${Math.floor(s / 3600)}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`
 }
 
-/**
- * The month's usage counted the way the node's plan meters it. The hub computes
- * it; the switch below serves only a hub from before `month_used`.
- */
-export function monthUsage(node: { month_rx: number; month_tx: number; month_used?: number; traffic_mode: string }): number {
-  if (typeof node.month_used === "number") return node.month_used
-  const { month_rx: rx, month_tx: tx } = node
-  switch (node.traffic_mode) {
+/** A transfer counted the way a plan meters it: both directions, one, or the larger. */
+export function metered(rx: number, tx: number, mode: string): number {
+  switch (mode) {
     case "up":
       return tx
     case "down":
@@ -94,6 +89,53 @@ export function monthUsage(node: { month_rx: number; month_tx: number; month_use
     default:
       return rx + tx
   }
+}
+
+/** How each `traffic_mode` counts, in the words the panel uses. */
+export const TRAFFIC_MODES: Record<string, string> = {
+  sum: "上下行合计",
+  up: "仅计上行",
+  down: "仅计下行",
+  max: "上下行取大",
+}
+
+/**
+ * The period's usage counted the way the node's plan meters it. The hub computes
+ * it; the fallback serves only a hub from before `month_used`.
+ */
+export function monthUsage(node: { month_rx: number; month_tx: number; month_used?: number; traffic_mode: string }): number {
+  if (typeof node.month_used === "number") return node.month_used
+  return metered(node.month_rx, node.month_tx, node.traffic_mode)
+}
+
+/**
+ * Today's usage counted the same way, so it can be drawn as the newest slice of
+ * the period's bar. Always computed here: the hub sends no `day_used`.
+ */
+export function dayUsage(node: { day_rx: number; day_tx: number; traffic_mode: string }): number {
+  return metered(node.day_rx, node.day_tx, node.traffic_mode)
+}
+
+/**
+ * A hypervisor's name as its vendor writes it. The agent reports what
+ * systemd-detect-virt prints, lower case; `none` is a bare machine or an
+ * undetected one, and either way there is nothing to write.
+ */
+const VIRT: Record<string, string> = {
+  kvm: "KVM", qemu: "QEMU", vmware: "VMware", microsoft: "Hyper-V", xen: "Xen", oracle: "VirtualBox",
+  parallels: "Parallels", bhyve: "bhyve", openvz: "OpenVZ", lxc: "LXC", "lxc-libvirt": "LXC", docker: "Docker",
+  podman: "Podman", wsl: "WSL", "systemd-nspawn": "nspawn",
+}
+
+export function virtName(virt: string): string {
+  return !virt || virt === "none" ? "" : VIRT[virt] ?? virt
+}
+
+/** `month_start` as a short date, or nothing when the hub sent none or an unreadable one. */
+export function periodStart(date?: string): string {
+  if (!date) return ""
+  const t = new Date(date.length === 10 ? `${date}T00:00:00` : date)
+  return Number.isNaN(t.getTime()) ? "" : `${t.getMonth() + 1} 月 ${t.getDate()} 日`
 }
 
 export function percent(used: number, total: number): number {
@@ -307,4 +349,33 @@ function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b)
   const half = sorted.length >> 1
   return sorted.length % 2 ? sorted[half] : (sorted[half - 1] + sorted[half]) / 2
+}
+
+/**
+ * Exponentially weighted moving average, the other view a reader turns on to see
+ * the trend: where `despike` removes the odd bucket and keeps the rest exact,
+ * this blends every bucket into the ones before it, so a line that jitters 20 ms
+ * from minute to minute settles into the level it jitters around.
+ *
+ * The weight is set by the time since the previous sample rather than a fixed
+ * factor, for the reason `despikeWindow` measures its window in minutes: the hub
+ * buckets a window to the points asked for, so one day arrives as one-minute
+ * buckets on a desktop and two-minute ones on a phone, and a fixed factor would
+ * smooth the two by different amounts. A sample `tau` after the last one moves
+ * the average 63% of the way to itself; one much later replaces it, so a node
+ * that was offline for an hour restarts from where it comes back rather than
+ * from where it left.
+ *
+ * A null is a timeout, kept as the gap it is; the average carries across it,
+ * since a lost packet says nothing about how fast the ones around it were.
+ */
+export function ewma(values: (number | null)[], times: number[], tau: number): (number | null)[] {
+  let mean: number | null = null
+  let last = 0
+  return values.map((v, i) => {
+    if (v === null) return null
+    mean = mean === null ? v : mean + (1 - Math.exp(-(times[i] - last) / tau)) * (v - mean)
+    last = times[i]
+    return mean
+  })
 }

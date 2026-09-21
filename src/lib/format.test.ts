@@ -4,8 +4,8 @@
 //
 // Nothing imports it, so the bundle never includes it.
 import {
-  axisBytes, axisTop, bytes, compact, cpuName, daysUntil, despike, distro, duration, monthUsage, osName, pair,
-  quarters, timeTicks, uptime,
+  axisBytes, axisTop, bytes, compact, cpuName, daysUntil, dayUsage, despike, distro, duration, ewma, metered,
+  monthUsage, osName, pair, periodStart, quarters, timeTicks, uptime, virtName,
 } from "./format.ts"
 
 let failed = 0
@@ -150,6 +150,33 @@ eq(duration(76 * 86400 + 5), "76 天", "超过一天只写天数")
 
 eq(osName("Debian GNU/Linux 12 (bookworm)"), "Debian 12", "发行版名去掉代号")
 eq(cpuName("Intel(R) Xeon(R) CPU E5-2680 8-Core Processor"), "Intel Xeon E5-2680", "CPU 名去掉商标和核数")
+
+// 今日用量按节点的计量方式折算，和本期同一口径，才能画成本期进度条末端的一段。
+eq(metered(3, 5, "sum"), 8, "合计")
+eq(metered(3, 5, "max"), 5, "取大")
+eq(dayUsage({ day_rx: 3, day_tx: 5, traffic_mode: "down" }), 3, "今日仅下行")
+eq(dayUsage({ day_rx: 3, day_tx: 5, traffic_mode: "" }), 8, "未设置按合计")
+
+eq(virtName("kvm"), "KVM", "常见虚拟化写成厂商写法")
+eq(virtName("none"), "", "物理机不写")
+eq(virtName("firecracker"), "firecracker", "不认识的原样输出")
+
+eq(periodStart("2026-09-01"), "9 月 1 日", "本期起始日")
+eq(periodStart(""), "", "没有起始日")
+eq(periodStart("不是日期"), "", "无法解析的起始日")
+
+// ewma：平直的线原样返回，阶跃单调逼近且不越过，超时保持缺口，长间隔后从新值重新开始。
+{
+  const t = [0, 60, 120, 180, 240, 300]
+  eq(ewma([20, 20, 20, 20, 20, 20], t, 120), [20, 20, 20, 20, 20, 20], "常量序列不变")
+  const step = ewma([0, 0, 0, 10, 10, 10], t, 60) as number[]
+  eq(step[2], 0, "阶跃前保持 0")
+  eq(step[3] > 6 && step[3] < 7, true, `一个 tau 后走完 63%（得到 ${step[3]}）`)
+  eq(step[4] > step[3] && step[5] > step[4] && step[5] < 10, true, "单调逼近且不越过")
+  // 缺口不更新“上一次”的时间：隔了两个桶再来的样本按两个桶的间隔加权。
+  eq(ewma([10, null, 30], [0, 60, 120], 60).map((v) => v === null ? null : Math.round(v)), [10, null, 27], "超时保持缺口，平均跨过它继续")
+  eq(ewma([10, 30], [0, 60_000], 60), [10, 30], "离线一小时后从回来的值重新开始")
+}
 
 if (failed) {
   console.error(`\n${failed} 项不通过`)

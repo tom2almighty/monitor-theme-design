@@ -126,7 +126,10 @@
 @layer base {
   * { @apply border-border outline-ring/50; }
   /* Without a reserved gutter, leaving a page taller than the fold widens it. */
-  html { scrollbar-gutter: stable; }
+  html { scrollbar-gutter: stable; color-scheme: light; }
+  /* Native scrollbars, form controls and the search field's clear button follow
+     the theme rather than the OS: a light scrollbar on the dark page glows. */
+  html.dark { color-scheme: dark; }
   body { @apply bg-background text-foreground; }
 }
 

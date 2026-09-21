@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
-import { ArrowUp, ChartLine, House, Moon, Sun, UserRound, type LucideIcon } from "lucide-react"
+import { ArrowUp, ChartLine, House, Monitor, Moon, Sun, UserRound, type LucideIcon } from "lucide-react"
 
 import { NodePicker } from "@/components/NodePicker"
 import { ServerTable } from "@/components/ServerTable"
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
 import { Link, useNodeRoute } from "@/lib/route"
+import { cn } from "@/lib/utils"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
@@ -17,20 +18,31 @@ const NodeDetail = lazy(loadDetail)
 
 const DARK_MEDIA = matchMedia("(prefers-color-scheme: dark)")
 
+type Mode = "light" | "dark" | "system"
+
 /**
- * The visitor's own choice, or the system's while there is none. Only the toggle
- * writes the choice down: persisting the system's answer on load would pin it,
- * leaving a visitor who never touched the toggle in whichever mode their system
- * happened to be in that day. The panel at `/admin/` shares this key on one
- * origin, so it has to hold to the same rule -- one app writing on load pins the
- * others.
+ * What the key says, read as the pre-paint script in index.html reads it: one of
+ * the two names is a choice, anything else is none.
+ */
+const savedMode = (): Mode => {
+  const saved = localStorage.getItem("theme")
+  return saved === "dark" || saved === "light" ? saved : "system"
+}
+
+/**
+ * The visitor's own choice, or the system's while there is none. Only the switch
+ * writes the choice down, and "system" is written as no key at all: persisting
+ * the system's answer would pin it, leaving a visitor who never touched the
+ * switch in whichever mode their system happened to be in that day. The panel at
+ * `/admin/` shares this key on one origin and reads it the same way, so it has
+ * to hold to the same rule -- one app writing on load pins the others.
  *
  * The system's answer is subscribed to rather than copied into state: a flip
  * landing between the first render and the effect that would have attached the
  * listener is otherwise never heard, and the next one is a day away.
  */
 function useTheme() {
-  const [saved, setSaved] = useState(() => localStorage.getItem("theme"))
+  const [mode, setMode] = useState(savedMode)
   const system = useSyncExternalStore(
     (notify) => {
       DARK_MEDIA.addEventListener("change", notify)
@@ -38,41 +50,102 @@ function useTheme() {
     },
     () => DARK_MEDIA.matches,
   )
-  const dark = saved ? saved === "dark" : system
+  const dark = mode === "system" ? system : mode === "dark"
+
+  // Another tab, or the panel open in one, changed the key: follow it, so two
+  // tabs of one site do not disagree.
+  useEffect(() => {
+    const sync = (e: StorageEvent) => {
+      if (e.key === null || e.key === "theme") setMode(savedMode())
+    }
+    addEventListener("storage", sync)
+    return () => removeEventListener("storage", sync)
+  }, [])
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark)
   }, [dark])
 
-  return [
-    dark,
-    () => {
-      const next = dark ? "light" : "dark"
-      localStorage.setItem("theme", next)
-      setSaved(next)
+  return {
+    mode,
+    choose: (next: Mode) => {
+      if (next === "system") localStorage.removeItem("theme")
+      else localStorage.setItem("theme", next)
+      setMode(next)
     },
-  ] as const
+  }
+}
+
+const MODES: { mode: Mode; icon: LucideIcon; label: string }[] = [
+  { mode: "light", icon: Sun, label: "浅色" },
+  { mode: "system", icon: Monitor, label: "跟随系统" },
+  { mode: "dark", icon: Moon, label: "深色" },
+]
+
+/**
+ * The three positions in one pill, the system's between the two appearances it
+ * picks from. A radio group, since exactly one is on; the arrow keys move along
+ * it as they do in one, and only the position that is on takes a tab stop.
+ */
+function ThemeSwitch({ mode, choose }: { mode: Mode; choose: (mode: Mode) => void }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="外观"
+      className="flex rounded-full border bg-card/85 p-0.5 shadow-md backdrop-blur"
+      onKeyDown={(e) => {
+        const by = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0
+        if (!by) return
+        e.preventDefault()
+        const next = (MODES.findIndex((m) => m.mode === mode) + by + MODES.length) % MODES.length
+        choose(MODES[next].mode)
+        ;(e.currentTarget.children[next] as HTMLElement).focus()
+      }}
+    >
+      {MODES.map(({ mode: m, icon: Icon, label }) => (
+        <button
+          key={m}
+          type="button"
+          role="radio"
+          aria-checked={mode === m}
+          aria-label={label}
+          title={label}
+          tabIndex={mode === m ? 0 : -1}
+          onClick={() => choose(m)}
+          className={cn(
+            "grid size-8 place-items-center rounded-full transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 max-md:size-7",
+            mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-primary",
+          )}
+        >
+          <Icon className="size-4 max-md:size-3.5" />
+        </button>
+      ))}
+    </div>
+  )
 }
 
 /** Kept in the corner rather than the header, as the classic layout does. */
-function Toolbox({ dark, toggle }: { dark: boolean; toggle: () => void }) {
+function Toolbox({ mode, choose }: { mode: Mode; choose: (mode: Mode) => void }) {
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const sync = () => setScrolled(scrollY > 200)
     addEventListener("scroll", sync, { passive: true })
     return () => removeEventListener("scroll", sync)
   }, [])
-  const style = "size-10 bg-card/85 text-primary shadow-md backdrop-blur hover:bg-card hover:text-primary max-md:size-9"
   return (
-    <div className="fixed right-3 bottom-5 z-20 flex flex-col gap-2.5 max-md:bottom-3">
+    <div className="fixed right-3 bottom-5 z-20 flex flex-col items-end gap-2.5 max-md:bottom-3">
       {scrolled && (
-        <Button variant="ghost" size="icon" className={style} title="回到顶部" onClick={() => scrollTo({ top: 0, behavior: "smooth" })}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-9 rounded-full border bg-card/85 text-primary shadow-md backdrop-blur hover:bg-card hover:text-primary max-md:size-8"
+          title="回到顶部"
+          onClick={() => scrollTo({ top: 0, behavior: "smooth" })}
+        >
           <ArrowUp />
         </Button>
       )}
-      <Button variant="ghost" size="icon" className={style} title="切换主题" onClick={toggle}>
-        {dark ? <Sun /> : <Moon />}
-      </Button>
+      <ThemeSwitch mode={mode} choose={choose} />
     </div>
   )
 }
@@ -91,7 +164,7 @@ function NavItem({ href, active, icon: Icon, children }: { href: string; active:
 }
 
 export default function App() {
-  const [dark, toggleTheme] = useTheme()
+  const { mode, choose } = useTheme()
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
   const { nodes, error, closed } = useNodes()
@@ -197,7 +270,7 @@ export default function App() {
         </a>
       </footer>
 
-      <Toolbox dark={dark} toggle={toggleTheme} />
+      <Toolbox mode={mode} choose={choose} />
     </div>
   )
 }

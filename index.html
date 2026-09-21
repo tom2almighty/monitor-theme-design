@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.svg" />
     <title>Monitor</title>
+    <script>
+      // Before first paint, so a dark-theme reader does not get a white page for
+      // the frame it takes React to mount and run the effect that adds the
+      // class. Same rule as the app: an explicit choice wins, otherwise the
+      // system's, and the panel at /admin/ reads the key the same way.
+      try {
+        var t = localStorage.getItem("theme")
+        if (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches))
+          document.documentElement.classList.add("dark")
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

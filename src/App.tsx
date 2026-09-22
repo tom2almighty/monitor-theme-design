@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState, useSyncExternalStore 
 import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sun, UserRound, type LucideIcon } from "lucide-react"
 
 import { NodePicker } from "@/components/NodePicker"
-import { ServerTable } from "@/components/ServerTable"
+import { ServerTable, ServerTableSkeleton } from "@/components/ServerTable"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { SEGMENT, Segmented } from "@/components/ui/segmented"
@@ -176,7 +176,13 @@ export default function App() {
   if (!me.public_page && !me.authed) return null
 
   return (
-    <div className="flex min-h-svh flex-col bg-muted/20">
+    <div className="relative flex min-h-svh flex-col bg-background">
+      {/* Analog tactile noise overlay */}
+      <div
+        className="pointer-events-none fixed inset-0 z-50 select-none bg-noise opacity-[0.045] dark:opacity-[0.07]"
+        aria-hidden="true"
+      />
+
       {/* Standard full-width sticky navigation bar aligned with page measure */}
       <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
         <div className={cn(CONTAINER_CLASS, "flex h-14 items-center justify-between gap-4")}>
@@ -222,7 +228,7 @@ export default function App() {
         )}
 
         {!nodes ? (
-          <Skeleton className="h-80 rounded-xl" />
+          <ServerTableSkeleton />
         ) : open === null ? (
           sorted.length === 0 ? (
             <Card className="py-16 text-center text-sm text-muted-foreground">还没有节点</Card>

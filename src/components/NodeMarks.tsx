@@ -30,21 +30,35 @@ export function deployed(node: Node) {
   return node.cpu_cores > 0 || node.mem_total > 0
 }
 
-/** Online, offline, or never heard from: a dot with a soft halo in the status colour. */
+/** Online, offline, or never heard from: a dot with a soft halo, with subtle pulse when online. */
 export function Dot({ node, className }: { node: Node; className?: string }) {
+  const isOnline = node.online
+  const isOffline = deployed(node)
+
   return (
     <span
-      title={node.online ? "在线" : deployed(node) ? "离线" : "未接入"}
+      title={isOnline ? "在线" : isOffline ? "离线" : "未接入"}
       className={cn(
-        "inline-block size-2.5 shrink-0 rounded-full align-middle",
-        node.online
-          ? "bg-emerald-500 shadow-[0_0_0_3px_rgb(16_185_129/0.18)]"
-          : deployed(node)
-            ? "bg-red-500 shadow-[0_0_0_3px_rgb(239_68_68/0.18)]"
-            : "bg-muted-foreground/40",
+        "relative inline-flex size-2.5 shrink-0 items-center justify-center align-middle",
         className,
       )}
-    />
+    >
+      {isOnline ? (
+        <>
+          <span className="absolute inset-0 rounded-full bg-emerald-500 opacity-50 animate-ping" />
+          <span className="relative size-full rounded-full bg-emerald-500 shadow-[0_0_0_1.5px_rgba(16,185,129,0.25)]" />
+        </>
+      ) : (
+        <span
+          className={cn(
+            "size-full rounded-full",
+            isOffline
+              ? "bg-red-500 shadow-[0_0_0_1.5px_rgba(239,68,68,0.25)]"
+              : "bg-muted-foreground/40",
+          )}
+        />
+      )}
+    </span>
   )
 }
 

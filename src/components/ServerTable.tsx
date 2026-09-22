@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react"
 
 import { Dot, Flag, Meter, Num, OsIcon, SLOT } from "@/components/NodeMarks"
 import { RowDetails } from "@/components/RowDetails"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { Node } from "@/lib/api"
@@ -10,15 +11,13 @@ import { cn } from "@/lib/utils"
 
 /**
  * The figure over its meter, as shadcn's stat tiles set them: the text carries
- * the value and the capsule the fullness, so neither has to read against the
- * other's colour. ServerStatus wrote the figure inside a tall bar, which is what
- * bound its fills to light greens and its dark mode to darker ones.
+ * the value and the capsule the fullness.
  */
 function Bar({ pct, label }: { pct: number | null; label?: string }) {
   const v = pct === null ? 0 : Math.min(100, Math.max(0, pct))
   return (
     <div className="flex flex-col gap-1">
-      <span className="tnum text-[11px] leading-none @max-3xl:text-[9px]">
+      <span className="tnum text-[11px] leading-none text-muted-foreground @max-3xl:text-[9px]">
         {label ?? (pct === null ? "—" : `${v.toFixed(1)}%`)}
       </span>
       <Meter pct={pct} />
@@ -29,27 +28,27 @@ function Bar({ pct, label }: { pct: number | null; label?: string }) {
 function Expiry({ node }: { node: Node }) {
   const days = daysUntil(node.expires_at)
   if (days === null) return <span className="text-muted-foreground" title="永不到期">{FOREVER}</span>
-  if (days < 0) return <span className="text-red-600 dark:text-red-400">已过期</span>
-  return <span className={cn(days <= 7 && "text-amber-600 dark:text-amber-400")}>{days} 天</span>
+  if (days < 0) return <Badge variant="destructive" className="px-1.5 py-0 text-[10px] font-normal">已过期</Badge>
+  if (days <= 7) return <Badge variant="warning" className="px-1.5 py-0 text-[10px] font-normal">{days} 天</Badge>
+  return <span className="text-foreground">{days} 天</span>
 }
 
 /**
- * Column widths and what folds away, applied to the header and every cell alike.
- * The panel is the container, so the table follows its own width rather than the
- * viewport's. Below 768px it switches to a fixed layout that fits a phone without
- * sideways scrolling, keeping the columns that change every push.
+ * Column widths and responsive folding.
+ * On wide screens (max-w-7xl), all 12 columns are comfortably displayed.
+ * On smaller screens, secondary columns gracefully hide.
  */
 const COL = {
-  status: "w-14 @max-3xl:w-[6%]",
-  name: "max-w-60 min-w-32 truncate @max-3xl:w-[14%] @max-3xl:max-w-none @max-3xl:min-w-0 @max-sm:w-[17%]",
-  location: "w-20 @max-3xl:w-[7%] @max-sm:hidden",
-  os: "min-w-24 @max-6xl:hidden",
-  uptime: "min-w-18 @max-3xl:hidden",
-  expiry: "min-w-18 @max-6xl:hidden",
-  load: "w-16 @max-3xl:hidden",
-  speed: "min-w-30 @max-3xl:w-[21%] @max-3xl:min-w-0",
-  bar: "w-[7.5%] min-w-22 @max-3xl:w-[10%] @max-3xl:min-w-0 @max-sm:w-[11%]",
-  traffic: "w-[7.5%] min-w-22 @max-3xl:w-[22%] @max-3xl:min-w-0 @max-sm:w-[23%]",
+  status: "w-12 text-center @max-3xl:w-[6%]",
+  name: "min-w-28 max-w-56 truncate text-left font-medium @max-3xl:w-[16%] @max-3xl:max-w-none @max-3xl:min-w-0 @max-sm:w-[18%]",
+  location: "w-16 text-center @max-3xl:w-[7%] @max-sm:hidden",
+  os: "w-28 text-center @max-5xl:hidden",
+  uptime: "w-20 text-center @max-3xl:hidden",
+  expiry: "w-20 text-center @max-5xl:hidden",
+  load: "w-16 text-center @max-3xl:hidden",
+  speed: "min-w-28 text-center @max-3xl:w-[21%] @max-3xl:min-w-0",
+  bar: "w-20 min-w-16 text-center @max-3xl:w-[10%] @max-3xl:min-w-0 @max-sm:w-[11%]",
+  traffic: "w-28 min-w-22 text-center @max-3xl:w-[22%] @max-3xl:min-w-0 @max-sm:w-[23%]",
 }
 
 function Row({ node }: { node: Node }) {
@@ -60,14 +59,15 @@ function Row({ node }: { node: Node }) {
 
   return (
     <>
-      {/* An open row loses its rule and takes the shade of the details beneath,
-          so the two read as one. */}
       <TableRow
         aria-expanded={open}
         tabIndex={0}
         onClick={toggle}
         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle())}
-        className="cursor-pointer aria-expanded:border-b-0 aria-expanded:bg-muted/30"
+        className={cn(
+          "cursor-pointer transition-colors hover:bg-muted/40",
+          open && "border-b-0 bg-muted/25 hover:bg-muted/30",
+        )}
       >
         <TableCell className={COL.status}><Dot node={node} className="mx-auto block" /></TableCell>
         <TableCell className={cn(COL.name, "text-left font-medium")} title={node.name}>{node.name}</TableCell>
@@ -75,22 +75,21 @@ function Row({ node }: { node: Node }) {
         <TableCell className={COL.os}>
           <span className="inline-flex items-center justify-center gap-1.5">
             <OsIcon os={node.os} />
-            {distro(node.os) || "—"}
+            <span className="truncate">{distro(node.os) || "—"}</span>
           </span>
         </TableCell>
         <TableCell className={cn(COL.uptime, "tnum")}>{m ? duration(m.uptime) : "—"}</TableCell>
         <TableCell className={cn(COL.expiry, "tnum")}><Expiry node={node} /></TableCell>
         <TableCell className={cn(COL.load, "tnum")}>{m ? m.load[0].toFixed(2) : "—"}</TableCell>
-        {/* No reservation on a phone: the column is 21% of the panel, 60px at
-            320px, against the 70px two slots and their separator need, and the
-            overflow disappears under the bar beside it. */}
         <TableCell className={COL.speed}>
           {m ? (
-            <>
+            <div className="inline-flex items-center justify-center text-xs">
+              <span className="text-emerald-600 dark:text-emerald-400 mr-0.5">↓</span>
               <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_rx)}</Num>
-              <span className="mx-1 text-muted-foreground">|</span>
+              <span className="mx-1 text-muted-foreground/60">|</span>
+              <span className="text-blue-600 dark:text-blue-400 mr-0.5">↑</span>
               <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_tx)}</Num>
-            </>
+            </div>
           ) : (
             "— | —"
           )}
@@ -109,22 +108,13 @@ function Row({ node }: { node: Node }) {
         </TableCell>
       </TableRow>
       {open && (
-        <TableRow className="bg-muted/30 hover:bg-muted/30">
+        <TableRow className="border-b bg-muted/25 hover:bg-muted/25">
           <TableCell colSpan={12} className="p-0! text-left whitespace-normal">
             <RowDetails node={node} />
           </TableCell>
         </TableRow>
       )}
     </>
-  )
-}
-
-/** One figure of the fleet: the label in the quiet ink, the figure in the page's. */
-function Stat({ label, title, children }: { label: string; title: string; children: ReactNode }) {
-  return (
-    <span className="whitespace-nowrap" title={title}>
-      <span className="text-muted-foreground">{label}</span> <span className="font-medium">{children}</span>
-    </span>
   )
 }
 
@@ -139,36 +129,68 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
   ]
 
   return (
-    <Card className="@container max-md:gap-3 max-md:py-3">
-      {/* The fleet in four figures beside the title, each a label and a value:
-          what is up, what it is moving now, what it has moved this period, and
-          what it has moved ever. */}
-      <CardHeader className="sm:flex-row sm:items-center sm:justify-between max-md:px-2">
-        <CardTitle>服务器</CardTitle>
-        <div className="tnum flex flex-wrap gap-x-4 gap-y-1 text-sm max-md:gap-x-3 max-md:text-xs">
-          <Stat label="在线" title="在线节点数 / 节点总数">
-            {/* The online count is reserved for as many digits as the total has,
-                since it cannot exceed it. */}
-            <Num ch={String(nodes.length).length}>{nodes.filter((n) => n.online).length}</Num> / {nodes.length}
-          </Stat>
-          <Stat label="网速" title="在线节点此刻的下行与上行之和">
-            ↓ <Num ch={SLOT.compact}>{compact(live((m) => m.net_rx))}</Num>/s{" "}
-            ↑ <Num ch={SLOT.compact}>{compact(live((m) => m.net_tx))}</Num>/s
-          </Stat>
-          <Stat label="本月" title="所有节点本期的下载与上传之和">
-            ↓ <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_rx))}</Num>{" "}
-            ↑ <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_tx))}</Num>
-          </Stat>
-          <Stat label="累计" title="所有节点自接入以来的下载与上传之和">
-            ↓ <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_rx))}</Num>{" "}
-            ↑ <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_tx))}</Num>
-          </Stat>
+    <Card className="@container gap-0 overflow-hidden py-0">
+      {/* Fleet overview summary chips in header */}
+      <CardHeader className="border-b border-border/60 py-3.5 sm:flex-row sm:items-center sm:justify-between max-md:px-3">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base">服务器列表</CardTitle>
+          <Badge variant="secondary" className="font-normal text-muted-foreground text-[11px]">
+            {nodes.length} 个节点
+          </Badge>
+        </div>
+        <div className="tnum flex flex-wrap items-center gap-2 text-xs">
+          <div
+            className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
+            title="在线节点数 / 节点总数"
+          >
+            <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.2)]" />
+            <span className="text-muted-foreground">在线</span>
+            <span className="font-semibold text-foreground">
+              <Num ch={String(nodes.length).length}>{nodes.filter((n) => n.online).length}</Num> / {nodes.length}
+            </span>
+          </div>
+
+          <div
+            className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
+            title="在线节点此刻的下行与上行之和"
+          >
+            <span className="text-muted-foreground">网速</span>
+            <span className="font-semibold text-foreground">
+              <span className="text-emerald-600 dark:text-emerald-400">↓</span>{" "}
+              <Num ch={SLOT.compact}>{compact(live((m) => m.net_rx))}</Num>/s{" "}
+              <span className="text-blue-600 dark:text-blue-400">↑</span>{" "}
+              <Num ch={SLOT.compact}>{compact(live((m) => m.net_tx))}</Num>/s
+            </span>
+          </div>
+
+          <div
+            className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
+            title="所有节点本期的下载与上传之和"
+          >
+            <span className="text-muted-foreground">本月</span>
+            <span className="font-semibold text-foreground">
+              ↓ <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_rx))}</Num>{" "}
+              ↑ <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_tx))}</Num>
+            </span>
+          </div>
+
+          <div
+            className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1 max-sm:hidden"
+            title="所有节点自接入以来的下载与上传之和"
+          >
+            <span className="text-muted-foreground">累计</span>
+            <span className="font-semibold text-foreground">
+              ↓ <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_rx))}</Num>{" "}
+              ↑ <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_tx))}</Num>
+            </span>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="max-md:px-2">
+
+      <CardContent className="p-0">
         <Table className="text-center text-sm @max-3xl:table-fixed @max-3xl:text-[10px]">
           <TableHeader>
-            <TableRow className="hover:bg-transparent">
+            <TableRow className="hover:bg-transparent bg-muted/20">
               {heads.map(([col, label], i) => (
                 <TableHead
                   key={i}
@@ -179,7 +201,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
               ))}
             </TableRow>
           </TableHeader>
-          <TableBody className="[&_td]:px-2 [&_td]:py-1.5 @max-3xl:[&_td]:px-1">
+          <TableBody className="[&_td]:px-2 [&_td]:py-2 @max-3xl:[&_td]:px-1">
             {nodes.map((n) => (
               <Row key={n.id} node={n} />
             ))}

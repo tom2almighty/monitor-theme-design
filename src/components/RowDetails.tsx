@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
 import { ChartLine } from "lucide-react"
 
 import { deployed, Meter, OsIcon } from "@/components/NodeMarks"
+import { Badge } from "@/components/ui/badge"
 import { Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Node } from "@/lib/api"
@@ -24,20 +25,16 @@ const TABS = [
 ]
 
 /**
- * One topic per card, on the shaded strip the open row lays down: the card is
- * what says where one topic ends, and its heading what the topic is, with the
- * one piece of standing information at the heading's right end. The cards in a
- * row stretch to one height, so the strip reads as a row of tiles rather than
- * a stack of lists.
+ * One topic per card, on the shaded strip the open row lays down.
  */
 function Block({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <section className="min-w-0 rounded-lg border bg-card px-3 py-2.5 shadow-xs">
-      <h4 className="mb-1.5 flex items-baseline justify-between gap-3 text-xs font-medium text-muted-foreground">
+    <section className="min-w-0 rounded-lg border border-border/80 bg-card p-3.5 shadow-xs">
+      <h4 className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-foreground">
         <span>{title}</span>
         {aside}
       </h4>
-      {children}
+      <div className="space-y-1">{children}</div>
     </section>
   )
 }
@@ -45,27 +42,22 @@ function Block({ title, aside, children }: { title: string; aside?: ReactNode; c
 /** One fact per line, the label in a fixed column so the values align. */
 function Line({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <div className="grid min-w-0 grid-cols-[3em_minmax(0,1fr)] gap-x-2">
+    <div className="grid min-w-0 grid-cols-[3.8rem_minmax(0,1fr)] items-baseline gap-x-2 text-xs leading-5">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn("tnum break-words", className)}>{children}</span>
+      <span className={cn("tnum break-words font-medium text-foreground", className)}>{children}</span>
     </div>
   )
 }
 
 /**
  * This period's usage against the plan's quota, with today's share lifted a
- * shade at the tip: today is the newest slice of the period, so the lighter
- * end is how much of the bar the last day added. The title says how much.
+ * shade at the tip.
  */
 function PeriodMeter({ used, today, limit, title }: { used: number; today: number; limit: number; title: string }) {
   const pct = percent(used, limit)
-  // Today cannot exceed the period it is part of; the clamp covers a period that
-  // reset since midnight.
   const share = pct > 0 ? (percent(Math.min(today, used), limit) / pct) * 100 : 0
   return (
     <Meter pct={pct} title={title} className="my-1.5 h-2">
-      {/* At least a hairline once there is anything to mark: a day that used a
-          tenth of a percent is otherwise a tip narrower than a pixel. */}
       {today > 0 && <div className="absolute inset-y-0 right-0 min-w-0.5 rounded-r-full bg-background/45" style={{ width: `${share}%` }} />}
     </Meter>
   )
@@ -82,19 +74,23 @@ function Overview({ node }: { node: Node }) {
   const since = periodStart(node.month_start)
   const usage = (used: number, total: number) => `${pair(used, total)}（${percent(used, total).toFixed(1)}%）`
   const flow = (rx: number, tx: number) => `↓ ${bytes(rx)} · ↑ ${bytes(tx)}`
-  // How the quota is counted matters only while there is one.
   const metering = [
     node.traffic_reset_day > 0 && `每月 ${node.traffic_reset_day} 日重置`,
     limit > 0 && (TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode),
   ].filter(Boolean)
 
   return (
-    // Two cards across from a large phone, four on a wide panel. A card is read
-    // top to bottom, so nothing wraps between columns, and the lines a row
-    // already shows on a wide panel -- system, uptime, expiry, load -- are here
-    // for the phone, where the row folds them away.
     <div className="grid gap-3 @min-[30rem]:grid-cols-2 @6xl:grid-cols-4">
-      <Block title="系统" aside={node.agent_version && <span className="tnum">agent {node.agent_version}</span>}>
+      <Block
+        title="系统信息"
+        aside={
+          node.agent_version && (
+            <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal text-muted-foreground">
+              v{node.agent_version}
+            </Badge>
+          )
+        }
+      >
         <Line label="系统">
           <span className="inline-flex max-w-full items-center gap-1.5 align-middle">
             <OsIcon os={node.os} />
@@ -109,13 +105,10 @@ function Overview({ node }: { node: Node }) {
         </Line>
       </Block>
 
-      {/* Only what is known: an offline node keeps its sizes and loses its
-          readings, and a line of dashes says less than no line. The rate and
-          the counts stay in the row and the chart page. */}
       <Block
-        title="资源"
+        title="资源监控"
         aside={
-          <Link href={`/node/${node.id}`} className="inline-flex items-center gap-1 text-foreground hover:underline">
+          <Link href={`/node/${node.id}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
             <ChartLine className="size-3" />
             历史图表
           </Link>
@@ -123,14 +116,21 @@ function Overview({ node }: { node: Node }) {
       >
         {m && <Line label="CPU">{m.cpu.toFixed(1)}%</Line>}
         <Line label="内存">{m ? usage(m.mem_used, m.mem_total) : bytes(node.mem_total)}</Line>
-        <Line label="交换">
-          {node.swap_total > 0 ? (m ? usage(m.swap_used, m.swap_total) : bytes(node.swap_total)) : "未启用"}
-        </Line>
+        <Line label="交换">{node.swap_total > 0 ? (m ? usage(m.swap_used, m.swap_total) : bytes(node.swap_total)) : "未启用"}</Line>
         <Line label="硬盘">{m ? usage(m.disk_used, m.disk_total) : bytes(node.disk_total)}</Line>
         {m && <Line label="负载">{m.load.map((n) => n.toFixed(2)).join(" / ")}</Line>}
       </Block>
 
-      <Block title="流量" aside={since && <span className="tnum">{since}起</span>}>
+      <Block
+        title="流量统计"
+        aside={
+          since && (
+            <span className="tnum text-[11px] text-muted-foreground">
+              {since}起
+            </span>
+          )
+        }
+      >
         <Line label="本期">{limit > 0 ? usage(used, limit) : `${bytes(used)} / ${FOREVER}`}</Line>
         {limit > 0 && (
           <PeriodMeter used={used} today={today} limit={limit} title={`本期已用 ${pair(used, limit)}，其中今日 ${bytes(today)}`} />
@@ -140,17 +140,20 @@ function Overview({ node }: { node: Node }) {
         {metering.length > 0 && <Line label="计量">{metering.join(" · ")}</Line>}
       </Block>
 
-      <Block title="账期">
+      <Block title="账期信息">
         <Line label="续费">
           {node.price > 0 ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}` : "免费"}
         </Line>
         <Line label="到期">{node.expires_at || "长期有效"}</Line>
         {days !== null && (
-          <Line
-            label="剩余"
-            className={days < 0 ? "text-red-600 dark:text-red-400" : days <= 7 ? "text-amber-600 dark:text-amber-400" : undefined}
-          >
-            {days < 0 ? `已过期 ${-days} 天` : `${days} 天`}
+          <Line label="剩余">
+            {days < 0 ? (
+              <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">已过期 {-days} 天</Badge>
+            ) : days <= 7 ? (
+              <Badge variant="warning" className="px-1.5 py-0 text-[10px]">剩余 {days} 天</Badge>
+            ) : (
+              `${days} 天`
+            )}
           </Line>
         )}
       </Block>
@@ -160,48 +163,39 @@ function Overview({ node }: { node: Node }) {
 
 /**
  * What a row opens into: two tabs, the round trips to the node first and the
- * four cards of what it is behind them, for a node a probe pings; the cards
- * alone, with no tabs, for one none does. Which it is comes from what earlier
- * windows recorded, and until any has, from the window fetched as the row
- * opens -- shown as a placeholder meanwhile rather than as either tab, since
- * the cards would be swapped out under the reader a moment later, and a
- * latency tab would be promised to a node that may have none.
+ * four cards of what it is behind them.
  */
 export function RowDetails({ node }: { node: Node }) {
   const [learned, setLearned] = useState<boolean | null>(null)
   const has = learned ?? knownPing(node.id)
-  // The reader's pick, kept apart from the default, so a latency tab that
-  // appears once the window arrives is the one on screen unless they chose.
   const [tab, setTab] = useState<string | null>(null)
   const shown = has === true ? tab ?? "latency" : "overview"
   const ready = deployed(node)
 
-  // The window's request starts as the row opens, alongside the chart's chunk
-  // when that is still on its way, rather than after it; the chart then finds
-  // the same request in the cache.
   useEffect(() => {
     if (ready) void fetchHistory(node.id, latencyWindow(), "ping")
   }, [node.id, ready])
 
   if (!ready) {
-    return <p className="px-4 py-3 text-sm text-muted-foreground">尚未接入。在后台生成安装命令并执行一次。</p>
+    return <p className="px-4 py-4 text-sm text-muted-foreground">尚未接入。在后台生成安装命令并执行一次。</p>
   }
 
   return (
-    <div className="space-y-3 px-4 py-3 text-[13px] leading-6 @max-3xl:px-2 @max-3xl:text-xs @max-3xl:leading-5">
-      {has === true && <Segmented value={shown} onChange={setTab} options={TABS} label="详情" />}
+    <div className="space-y-3.5 px-4 py-3.5 text-xs @max-3xl:px-2">
+      {has === true && (
+        <div className="flex items-center">
+          <Segmented value={shown} onChange={setTab} options={TABS} label="详情视图" />
+        </div>
+      )}
 
-      {has === undefined && <Skeleton className="h-[340px] rounded-lg" />}
+      {has === undefined && <Skeleton className="h-[320px] rounded-lg" />}
 
-      {/* Mounted whichever tab is up, hidden rather than unmounted: the chart
-          is what answers whether the node has a probe, on every open, so a
-          node found to have none is asked again next time; and it keeps its
-          zoom and its hidden probes across a switch to the cards and back. */}
       <div hidden={shown !== "latency"}>
-        <Suspense fallback={has === true ? <Skeleton className="h-[340px] rounded-lg" /> : null}>
+        <Suspense fallback={has === true ? <Skeleton className="h-[320px] rounded-lg" /> : null}>
           <Latency id={node.id} card className="h-[280px] @max-3xl:h-[220px]" onKnown={setLearned} />
         </Suspense>
       </div>
+
       <div hidden={shown !== "overview" || has === undefined}>
         <Overview node={node} />
       </div>

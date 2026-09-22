@@ -41,10 +41,6 @@ const savedMode = (): Mode => {
  * switch in whichever mode their system happened to be in that day. The panel at
  * `/admin/` shares this key on one origin and reads it the same way, so it has
  * to hold to the same rule -- one app writing on load pins the others.
- *
- * The system's answer is subscribed to rather than copied into state: a flip
- * landing between the first render and the effect that would have attached the
- * listener is otherwise never heard, and the next one is a day away.
  */
 function useTheme() {
   const [mode, setMode] = useState(savedMode)
@@ -83,9 +79,9 @@ function useTheme() {
 
 // The three positions, the system's between the two appearances it picks from.
 const MODES = [
-  { value: "light" as const, label: <Sun />, title: "浅色" },
-  { value: "system" as const, label: <Monitor />, title: "跟随系统" },
-  { value: "dark" as const, label: <Moon />, title: "深色" },
+  { value: "light" as const, label: <Sun className="size-3.5" />, title: "浅色" },
+  { value: "system" as const, label: <Monitor className="size-3.5" />, title: "跟随系统" },
+  { value: "dark" as const, label: <Moon className="size-3.5" />, title: "深色" },
 ]
 
 /** Back to the top of a long list, once it has been scrolled past. */
@@ -101,19 +97,17 @@ function BackToTop() {
     <Button
       variant="outline"
       size="icon"
-      className="fixed right-4 bottom-4 z-20 rounded-full shadow-md max-md:right-3 max-md:bottom-3"
+      className="fixed right-6 bottom-6 z-30 rounded-full shadow-md max-md:right-4 max-md:bottom-4"
       title="回到顶部"
       onClick={() => scrollTo({ top: 0, behavior: "smooth" })}
     >
-      <ArrowUp />
+      <ArrowUp className="size-4" />
     </Button>
   )
 }
 
 /**
  * One page of the two, in the segmented shape the theme switch beside it wears.
- * A real anchor rather than a radio: a middle click still opens the page in a
- * new tab.
  */
 function NavTab({ href, active, icon: Icon, children }: { href: string; active: boolean; icon: LucideIcon; children: string }) {
   return (
@@ -121,15 +115,16 @@ function NavTab({ href, active, icon: Icon, children }: { href: string; active: 
       href={href}
       aria-current={active ? "page" : undefined}
       title={children}
-      className={cn(SEGMENT.item, "text-sm max-sm:px-2", active ? SEGMENT.on : SEGMENT.off)}
+      className={cn(SEGMENT.item, "text-xs max-sm:px-2", active ? SEGMENT.on : SEGMENT.off)}
     >
-      <Icon />
-      {/* Icons alone on a phone, where the header also holds the site name, the
-          theme switch and the panel link. */}
+      <Icon className="size-3.5" />
       <span className="max-sm:sr-only">{children}</span>
     </Link>
   )
 }
+
+// Unified layout measure across header, main, and footer: 1280px (max-w-7xl)
+const CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8"
 
 export default function App() {
   const { mode, choose } = useTheme()
@@ -139,8 +134,6 @@ export default function App() {
   const open = useNodeRoute()
 
   const loadMe = useCallback(() => {
-    // `|| "..."`: HTTP/2 has no statusText, so a bodiless 502 from a proxy arrives
-    // as "" and would otherwise render as still loading, with no retry button.
     return api<Me>("/me")
       .then((next) => { setMe(next); setMeError("") })
       .catch((e: Error) => setMeError(e.message || "网络错误"))
@@ -151,8 +144,6 @@ export default function App() {
     void loadDetail()
   }, [loadMe])
 
-  // The status page was closed while this tab was open: re-query, so the effect
-  // below sends an anonymous visitor to the panel instead of a list that stopped.
   useEffect(() => {
     if (closed) void loadMe()
   }, [closed, loadMe])
@@ -171,39 +162,38 @@ export default function App() {
 
   if (!me) return (
     <div className="grid min-h-svh place-items-center p-6 text-sm text-muted-foreground">
-      {meError ? <div className="space-y-3 text-center"><p role="alert">加载失败：{meError}</p><Button onClick={loadMe}>重试</Button></div> : "加载中…"}
+      {meError ? (
+        <div className="space-y-3 text-center">
+          <p role="alert">加载失败：{meError}</p>
+          <Button onClick={loadMe}>重试</Button>
+        </div>
+      ) : (
+        "加载中…"
+      )}
     </div>
   )
 
   if (!me.public_page && !me.authed) return null
 
-  // One measure for the header, the page and the footer: 56rem, a reading
-  // width, since the table folds its wide-panel columns into the expanded row
-  // and the charts read better short.
-  const measure = "mx-auto w-full max-w-4xl px-4 max-md:px-3"
-
   return (
-    // A faint wash under the cards, so they read as cards rather than as
-    // outlines on the page.
-    <div className="flex min-h-svh flex-col bg-muted/40">
-      {/* A bar floating over the page rather than spanning it: the same measure
-          as the cards, inset from the top, translucent and lifted, so it is not
-          read as one more of them. The gap above it is the header's own
-          padding, so it stays when the bar sticks; the padding lets clicks
-          through to what scrolls beneath. */}
-      <header className="pointer-events-none sticky top-0 z-10 px-4 pt-3 max-md:px-3 max-md:pt-2">
-        <div className="pointer-events-auto mx-auto flex h-12 w-full max-w-4xl items-center gap-3 rounded-xl border border-border/70 bg-background/80 pr-2 pl-4 shadow-lg shadow-black/5 backdrop-blur-md supports-[backdrop-filter]:bg-background/65 max-sm:gap-2 max-sm:pl-3">
-          <Link href="/" className="flex min-w-0 items-center gap-2 font-semibold tracking-tight">
-            <img src="/favicon.svg" alt="" className="size-5 shrink-0" />
-            <span className="truncate">{site}</span>
-          </Link>
-          <nav aria-label="页面" className={cn(SEGMENT.list, "shrink-0")}>
-            <NavTab href="/" active={open === null} icon={House}>首页</NavTab>
-            {sorted.length > 0 && (
-              <NavTab href={`/node/${open ?? sorted[0].id}`} active={open !== null} icon={ChartLine}>监控</NavTab>
-            )}
-          </nav>
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+    <div className="flex min-h-svh flex-col bg-muted/20">
+      {/* Standard full-width sticky navigation bar aligned with page measure */}
+      <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
+        <div className={cn(CONTAINER_CLASS, "flex h-14 items-center justify-between gap-4")}>
+          <div className="flex items-center gap-6 max-sm:gap-3">
+            <Link href="/" className="flex min-w-0 items-center gap-2.5 font-semibold tracking-tight text-foreground transition-colors hover:opacity-90">
+              <img src="/favicon.svg" alt="" className="size-5 shrink-0" />
+              <span className="truncate text-base font-bold">{site}</span>
+            </Link>
+            <nav aria-label="页面" className={cn(SEGMENT.list, "shrink-0")}>
+              <NavTab href="/" active={open === null} icon={House}>首页</NavTab>
+              {sorted.length > 0 && (
+                <NavTab href={`/node/${open ?? sorted[0].id}`} active={open !== null} icon={ChartLine}>监控</NavTab>
+              )}
+            </nav>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 max-sm:gap-1.5">
             <Segmented
               value={mode}
               onChange={choose}
@@ -211,8 +201,6 @@ export default function App() {
               label="外观"
               className="max-sm:[&>button]:px-2"
             />
-            {/* The panel is a separate app built into the hub, so this is a
-                navigation rather than a route. */}
             <a
               href="/admin/"
               title={me.authed ? "后台" : "登录"}
@@ -225,7 +213,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className={cn(measure, "flex-1 space-y-4 py-5 max-md:py-3")}>
+      {/* Main body with unified container width */}
+      <main className={cn(CONTAINER_CLASS, "flex-1 space-y-6 py-6 max-md:py-4")}>
         {error && (
           <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {error}
@@ -241,7 +230,7 @@ export default function App() {
             <ServerTable nodes={sorted} />
           )
         ) : selected ? (
-          <Card className="grid gap-5 p-5 md:grid-cols-[200px_minmax(0,1fr)] max-md:gap-3 max-md:p-3">
+          <Card className="grid gap-6 p-5 md:grid-cols-[220px_minmax(0,1fr)] max-md:gap-4 max-md:p-3">
             <NodePicker nodes={sorted} selected={selected.id} />
             <div className="min-w-0">
               <Suspense fallback={<Skeleton className="h-96" />}>
@@ -256,8 +245,9 @@ export default function App() {
         )}
       </main>
 
-      <footer>
-        <div className={cn(measure, "flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-t py-5 text-xs text-muted-foreground")}>
+      {/* Footer with matching measure */}
+      <footer className="border-t border-border/60 bg-background/50">
+        <div className={cn(CONTAINER_CLASS, "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-5 text-xs text-muted-foreground")}>
           <span>
             {site} · Powered by{" "}
             <a href="https://github.com/monitor-probe/monitor" target="_blank" rel="noreferrer" className="font-medium hover:text-foreground">

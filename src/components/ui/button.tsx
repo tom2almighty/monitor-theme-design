@@ -2,23 +2,34 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-// shadcn/ui's button, cut to the shapes this theme renders: the filled retry on
-// a failed load and the outlined back-to-top in the corner. A variant nothing
-// renders is dead styling, and `asChild` would carry a radix-ui dependency for a
-// delegation no caller asks for.
 const VARIANTS = {
   default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-  outline: "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+  destructive: "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
+  outline: "border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50",
+  secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+  ghost: "hover:bg-accent hover:text-accent-foreground",
+  link: "text-primary underline-offset-4 hover:underline",
 }
 
-const SIZES = { default: "h-9 px-4 py-2 has-[>svg]:px-3", icon: "size-9" }
+const SIZES = {
+  default: "h-9 px-4 py-2 has-[>svg]:px-3",
+  sm: "h-8 rounded-md px-3 text-xs has-[>svg]:px-2.5",
+  lg: "h-10 rounded-md px-6",
+  icon: "size-9",
+  "icon-sm": "size-8",
+}
+
+export interface ButtonProps extends React.ComponentProps<"button"> {
+  variant?: keyof typeof VARIANTS
+  size?: keyof typeof SIZES
+}
 
 function Button({
   className,
   variant = "default",
   size = "default",
   ...props
-}: React.ComponentProps<"button"> & { variant?: keyof typeof VARIANTS; size?: keyof typeof SIZES }) {
+}: ButtonProps) {
   return (
     <button
       data-slot="button"

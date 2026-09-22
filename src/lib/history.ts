@@ -65,8 +65,8 @@ export function latencyWindow(): number {
   return inRanges(picked) ? picked : LATENCY_HOURS
 }
 
-// The page's measure, in CSS pixels: App lays everything out at max-w-4xl.
-const PAGE_PX = 896
+// The page's measure, in CSS pixels: App lays everything out at max-w-7xl (1280px).
+const PAGE_PX = 1280
 
 /**
  * How many points to ask for: what the plot can draw, in device pixels, which is

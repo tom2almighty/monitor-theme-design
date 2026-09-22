@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Search } from "lucide-react"
 
 import { Dot, Flag } from "@/components/NodeMarks"
 import { Input } from "@/components/ui/input"
@@ -6,9 +7,7 @@ import type { Node } from "@/lib/api"
 import { Link } from "@/lib/route"
 
 /**
- * The chart page's node list. Switching here keeps the chosen range, so one
- * window can be compared across nodes; the search keeps a fleet of a hundred
- * within a few keystrokes.
+ * The chart page's node list with instant search and selection.
  */
 export function NodePicker({ nodes, selected }: { nodes: Node[]; selected: number }) {
   const [query, setQuery] = useState("")
@@ -16,20 +15,29 @@ export function NodePicker({ nodes, selected }: { nodes: Node[]; selected: numbe
   const shown = q ? nodes.filter((n) => `${n.name} ${n.country} ${n.os}`.toLowerCase().includes(q)) : nodes
 
   return (
-    <aside className="flex min-h-0 flex-col gap-2 max-md:max-h-52 max-md:border-b max-md:pb-3 md:sticky md:top-[4.5rem] md:max-h-[calc(100svh-5.5rem)] md:self-start md:border-r md:pr-4">
-      <Input type="search" placeholder="搜索节点…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-8" />
-      <nav className="min-h-0 space-y-0.5 overflow-y-auto">
-        {shown.length === 0 && <p className="py-4 text-center text-xs text-muted-foreground">没有匹配的节点</p>}
+    <aside className="flex min-h-0 flex-col gap-2.5 max-md:max-h-56 max-md:border-b max-md:pb-3 md:sticky md:top-[4.75rem] md:max-h-[calc(100svh-6rem)] md:self-start md:border-r md:border-border/70 md:pr-4">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder="搜索节点…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="h-8 pl-8 text-xs"
+        />
+      </div>
+      <nav className="min-h-0 space-y-1 overflow-y-auto pr-1">
+        {shown.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">没有匹配的节点</p>}
         {shown.map((n) => (
           <Link
             key={n.id}
             href={`/node/${n.id}`}
             aria-current={n.id === selected ? "page" : undefined}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground aria-[current=page]:bg-accent aria-[current=page]:font-medium aria-[current=page]:text-accent-foreground"
+            className="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground aria-[current=page]:bg-accent aria-[current=page]:font-semibold aria-[current=page]:text-accent-foreground"
           >
-            <Dot node={n} className="size-2" />
+            <Dot node={n} className="size-2 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{n.name}</span>
-            <Flag code={n.country} className="text-xs" />
+            <Flag code={n.country} className="text-xs shrink-0" />
           </Link>
         ))}
       </nav>

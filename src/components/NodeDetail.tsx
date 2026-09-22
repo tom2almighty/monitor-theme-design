@@ -5,6 +5,7 @@ import {
 } from "recharts"
 
 import { deployed, Dot, Flag } from "@/components/NodeMarks"
+import { Badge } from "@/components/ui/badge"
 import { Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Toggle } from "@/components/ui/toggle"
@@ -39,18 +40,18 @@ const PALETTE = [1, 2, 3, 4, 5].map((i) => `var(--color-chart-${i})`)
 // a hairline, a soft shadow.
 const TIP = {
   fontSize: 12,
-  padding: "6px 10px",
+  padding: "8px 12px",
   background: "var(--color-popover)",
   color: "var(--color-popover-foreground)",
   border: "1px solid var(--color-border)",
   borderRadius: "calc(var(--radius) - 2px)",
-  boxShadow: "0 4px 12px rgb(0 0 0 / 0.08)",
+  boxShadow: "0 4px 12px rgb(0 0 0 / 0.1)",
 }
 
 function Panel({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div>
-      <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
+    <div className="rounded-lg border border-border/80 bg-card p-4 shadow-xs">
+      <h4 className="mb-3 text-xs font-semibold text-foreground">{title}</h4>
       <div className="h-64 w-full text-muted-foreground">{children}</div>
     </div>
   )
@@ -306,7 +307,7 @@ export function Latency({
     onKnown?.(failed ? true : recordPing(id, has, hours))
   }, [data, loading, failed, id, has, hours, onKnown])
 
-  const frame = card ? "rounded-lg border bg-card p-3 shadow-xs" : ""
+  const frame = card ? "rounded-lg border border-border/80 bg-card p-4 shadow-xs" : ""
   if (!data) return <div className={frame}><Skeleton className={cn("w-full", className)} /></div>
   if (failed) return <div className={frame}><Failed message={failed} retry={retry} /></div>
   // A node that has shown a probe keeps its section through an empty window,
@@ -319,7 +320,7 @@ export function Latency({
   const drawn = (id: number) => `${despiked ? (smoothed ? "f" : "s") : smoothed ? "e" : "t"}${id}`
 
   return (
-    <section className={cn("space-y-2", frame)}>
+    <section className={cn("space-y-3", frame)}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         {fixed === undefined && (
           <Segmented
@@ -361,8 +362,8 @@ export function Latency({
                 }
                 aria-pressed={shown}
                 className={cn(
-                  "inline-flex h-6 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-opacity hover:bg-muted",
-                  !shown && "opacity-40",
+                  "inline-flex h-6 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-all hover:bg-muted",
+                  !shown ? "border-dashed border-border/60 opacity-40" : "border-border/80 bg-card shadow-2xs",
                 )}
               >
                 {/* The swatch carries the same colour as the line. */}
@@ -540,22 +541,26 @@ export function NodeDetail({ node }: { node: Node }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
         <Dot node={node} />
-        <h2 className="truncate text-lg font-semibold tracking-tight">{node.name}</h2>
+        <h2 className="truncate text-lg font-bold tracking-tight text-foreground">{node.name}</h2>
         <Flag code={node.country} className="text-sm" />
-        <span className="tnum text-xs text-muted-foreground">
+        <Badge variant={node.online ? "success" : deployed(node) ? "destructive" : "secondary"}>
           {node.online ? `在线 ${m ? uptime(m.uptime) : ""}` : deployed(node) ? `离线 ${away >= 60 ? uptime(away) : ""}` : "未接入"}
-        </span>
-        {node.agent_version && <span className="text-xs text-muted-foreground">agent {node.agent_version}</span>}
+        </Badge>
+        {node.agent_version && (
+          <Badge variant="outline" className="font-normal text-muted-foreground text-xs">
+            v{node.agent_version}
+          </Badge>
+        )}
       </div>
 
       {node.remark && (
-        <p className="rounded-lg border bg-muted/50 px-3 py-2 text-sm whitespace-pre-wrap">{node.remark}</p>
+        <p className="rounded-lg border border-border/80 bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{node.remark}</p>
       )}
 
       {/* What to draw on the left, over which window on the right. */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-4">
         <Segmented
           value={chart}
           onChange={setChart}

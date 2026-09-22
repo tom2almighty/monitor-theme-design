@@ -18,8 +18,8 @@ import { cn } from "@/lib/utils"
 function Bar({ pct, label }: { pct: number | null; label?: string }) {
   const v = pct === null ? 0 : Math.min(100, Math.max(0, pct))
   return (
-    <div className="flex flex-col gap-1">
-      <span className="tnum text-[11px] leading-none text-muted-foreground @max-3xl:text-[9px]">
+    <div className="flex flex-col gap-1 min-w-0">
+      <span className="tnum truncate text-[11px] leading-none text-muted-foreground @max-3xl:text-[9px]">
         {label ?? (pct === null ? "—" : `${v.toFixed(1)}%`)}
       </span>
       <Meter pct={pct} />
@@ -42,15 +42,15 @@ function Expiry({ node }: { node: Node }) {
  */
 const COL = {
   status: "w-12 text-center @max-3xl:w-[6%]",
-  name: "min-w-28 max-w-56 truncate text-left font-medium @max-3xl:w-[16%] @max-3xl:max-w-none @max-3xl:min-w-0 @max-sm:w-[18%]",
+  name: "min-w-28 max-w-56 truncate text-left font-medium @max-3xl:w-[19%] @max-3xl:max-w-none @max-3xl:min-w-0 @max-sm:w-[22%]",
   location: "w-16 text-center @max-3xl:w-[7%] @max-sm:hidden",
   os: "w-28 text-center @max-5xl:hidden",
   uptime: "w-20 text-center @max-3xl:hidden",
   expiry: "w-20 text-center @max-5xl:hidden",
   load: "w-16 text-center @max-3xl:hidden",
-  speed: "min-w-28 text-center @max-3xl:w-[21%] @max-3xl:min-w-0",
-  bar: "w-20 min-w-16 text-center @max-3xl:w-[10%] @max-3xl:min-w-0 @max-sm:w-[11%]",
-  traffic: "w-28 min-w-22 text-center @max-3xl:w-[22%] @max-3xl:min-w-0 @max-sm:w-[23%]",
+  speed: "min-w-28 text-center @max-3xl:w-[15%] @max-3xl:min-w-0 @max-sm:w-[16%] overflow-hidden",
+  bar: "w-20 min-w-16 text-center @max-3xl:w-[10%] @max-3xl:min-w-0 @max-sm:w-[11%] overflow-hidden",
+  traffic: "w-28 min-w-22 text-center @max-3xl:w-[23%] @max-3xl:min-w-0 @max-sm:w-[23%] overflow-hidden",
 }
 
 type SortField = "name" | "uptime" | "load" | "speed" | "cpu" | "mem" | "disk" | "traffic"
@@ -145,15 +145,22 @@ function Row({ node }: { node: Node }) {
         <TableCell className={cn(COL.load, "tnum")}>{m ? m.load[0].toFixed(2) : "—"}</TableCell>
         <TableCell className={COL.speed}>
           {m ? (
-            <div className="inline-flex items-center justify-center text-xs">
-              <span className="text-emerald-600 dark:text-emerald-400 mr-0.5 font-mono">↓</span>
-              <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_rx)}</Num>
-              <span className="mx-1 text-muted-foreground/60">|</span>
-              <span className="text-blue-600 dark:text-blue-400 mr-0.5 font-mono">↑</span>
-              <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_tx)}</Num>
+            <div className="inline-flex items-center justify-center text-xs @max-3xl:flex @max-3xl:flex-col @max-3xl:items-center @max-3xl:gap-0.5 @max-3xl:text-[9px] @max-3xl:leading-none">
+              <span className="inline-flex items-center">
+                <span className="text-emerald-600 dark:text-emerald-400 mr-0.5 font-mono">↓</span>
+                <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_rx)}</Num>
+              </span>
+              <span className="mx-1 text-muted-foreground/60 @max-3xl:hidden">|</span>
+              <span className="inline-flex items-center">
+                <span className="text-blue-600 dark:text-blue-400 mr-0.5 font-mono">↑</span>
+                <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_tx)}</Num>
+              </span>
             </div>
           ) : (
-            "— | —"
+            <span className="text-muted-foreground text-xs @max-3xl:text-[9px]">
+              <span className="@max-3xl:hidden">— | —</span>
+              <span className="hidden @max-3xl:inline">—</span>
+            </span>
           )}
         </TableCell>
         <TableCell className={COL.bar}><Bar pct={m ? m.cpu : null} /></TableCell>
@@ -199,21 +206,21 @@ function SortableHead({
   return (
     <TableHead
       className={cn(
-        "group h-9 px-2 text-center text-xs font-medium text-muted-foreground transition-colors @max-3xl:px-1",
+        "group h-9 px-2 text-center text-xs font-medium text-muted-foreground transition-colors @max-3xl:px-0.5 @max-3xl:text-[10px]",
         COL[col],
         col === "name" && "text-left",
         field && "cursor-pointer select-none hover:text-foreground",
       )}
       onClick={field ? () => onSort(field) : undefined}
     >
-      <div className={cn("inline-flex items-center gap-1", col === "name" && "justify-start pl-5")}>
+      <div className={cn("inline-flex items-center gap-1 @max-3xl:gap-0.5", col === "name" && "justify-start pl-5 @max-3xl:pl-2")}>
         <span>{label}</span>
         {field && (
           <span className="shrink-0 text-muted-foreground/70">
             {isSorted ? (
               sortOrder === "asc" ? <ArrowUp className="size-3 text-primary" /> : <ArrowDown className="size-3 text-primary" />
             ) : (
-              <ArrowUpDown className="size-2.5 opacity-0 transition-opacity group-hover:opacity-100" />
+              <ArrowUpDown className="size-2.5 opacity-0 transition-opacity group-hover:opacity-100 @max-3xl:hidden" />
             )}
           </span>
         )}
@@ -260,7 +267,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
     ["uptime", "在线", "uptime"],
     ["expiry", "到期"],
     ["load", "负载", "load"],
-    ["speed", "网速 ↓|↑", "speed"],
+    ["speed", <>网速<span className="@max-3xl:hidden"> ↓|↑</span></>, "speed"],
     ["bar", "CPU", "cpu"],
     ["bar", "内存", "mem"],
     ["bar", "硬盘", "disk"],
@@ -356,7 +363,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
               ))}
             </TableRow>
           </TableHeader>
-          <TableBody className="[&_td]:px-2 [&_td]:py-2 @max-3xl:[&_td]:px-1">
+          <TableBody className="[&_td]:px-2 [&_td]:py-2 @max-3xl:[&_td]:px-0.5">
             {filteredNodes.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={12} className="py-12 text-center text-sm text-muted-foreground">
@@ -401,12 +408,12 @@ export function ServerTableSkeleton() {
             <div key={i} className="flex h-11 items-center gap-4 px-4">
               <Skeleton className="size-2.5 rounded-full shrink-0" />
               <Skeleton className="h-4 w-32 shrink-0" />
-              <Skeleton className="h-4 w-12 shrink-0" />
+              <Skeleton className="h-4 w-12 shrink-0 @max-sm:hidden" />
               <Skeleton className="h-4 w-20 shrink-0 @max-5xl:hidden" />
               <Skeleton className="h-4 w-16 shrink-0 @max-3xl:hidden" />
               <Skeleton className="h-4 w-16 shrink-0 @max-5xl:hidden" />
               <Skeleton className="h-4 w-12 shrink-0 @max-3xl:hidden" />
-              <Skeleton className="h-4 w-24 shrink-0" />
+              <Skeleton className="h-4 w-24 shrink-0 @max-3xl:w-12" />
               <Skeleton className="h-2 w-16 shrink-0" />
               <Skeleton className="h-2 w-16 shrink-0" />
               <Skeleton className="h-2 w-16 shrink-0" />

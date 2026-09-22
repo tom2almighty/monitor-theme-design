@@ -16,20 +16,20 @@ export function NodePicker({ nodes, selected }: { nodes: Node[]; selected: numbe
   const shown = q ? nodes.filter((n) => `${n.name} ${n.country} ${n.os}`.toLowerCase().includes(q)) : nodes
 
   return (
-    <aside className="flex min-h-0 flex-col max-md:max-h-52 max-md:border-b max-md:pb-2 md:sticky md:top-16 md:max-h-[calc(100svh-6rem)] md:self-start md:border-r md:pr-4">
+    <aside className="flex min-h-0 flex-col gap-2 max-md:max-h-52 max-md:border-b max-md:pb-3 md:sticky md:top-[4.5rem] md:max-h-[calc(100svh-5.5rem)] md:self-start md:border-r md:pr-4">
       <Input type="search" placeholder="搜索节点…" value={query} onChange={(e) => setQuery(e.target.value)} className="h-8" />
-      <nav className="mt-2 min-h-0 overflow-y-auto">
+      <nav className="min-h-0 space-y-0.5 overflow-y-auto">
         {shown.length === 0 && <p className="py-4 text-center text-xs text-muted-foreground">没有匹配的节点</p>}
         {shown.map((n) => (
           <Link
             key={n.id}
             href={`/node/${n.id}`}
             aria-current={n.id === selected ? "page" : undefined}
-            className="flex items-center gap-2 border-b px-2 py-2 text-sm transition-colors hover:bg-accent aria-[current=page]:bg-accent aria-[current=page]:text-primary"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground aria-[current=page]:bg-accent aria-[current=page]:font-medium aria-[current=page]:text-accent-foreground"
           >
             <Dot node={n} className="size-2" />
             <span className="min-w-0 flex-1 truncate">{n.name}</span>
-            <Flag code={n.country} className="text-xs text-muted-foreground" />
+            <Flag code={n.country} className="text-xs" />
           </Link>
         ))}
       </nav>

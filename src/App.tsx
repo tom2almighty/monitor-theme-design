@@ -1,13 +1,18 @@
-import { lazy, Suspense, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
-import { ArrowUp, ChartLine, House, Monitor, Moon, Sun, UserRound, type LucideIcon } from "lucide-react"
+import { lazy, Suspense, useCallback, useEffect, useState, useSyncExternalStore } from "react"
+import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sun, UserRound, type LucideIcon } from "lucide-react"
 
 import { NodePicker } from "@/components/NodePicker"
 import { ServerTable } from "@/components/ServerTable"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { SEGMENT, Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
 import { Link, useNodeRoute } from "@/lib/route"
 import { cn } from "@/lib/utils"
+// The name, author and repository the footer credits, read from the manifest
+// the panel reads, so the two never disagree.
+import theme from "../theme.json"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
@@ -76,89 +81,52 @@ function useTheme() {
   }
 }
 
-const MODES: { mode: Mode; icon: LucideIcon; label: string }[] = [
-  { mode: "light", icon: Sun, label: "浅色" },
-  { mode: "system", icon: Monitor, label: "跟随系统" },
-  { mode: "dark", icon: Moon, label: "深色" },
+// The three positions, the system's between the two appearances it picks from.
+const MODES = [
+  { value: "light" as const, label: <Sun />, title: "浅色" },
+  { value: "system" as const, label: <Monitor />, title: "跟随系统" },
+  { value: "dark" as const, label: <Moon />, title: "深色" },
 ]
 
-/**
- * The three positions in one pill, the system's between the two appearances it
- * picks from. A radio group, since exactly one is on; the arrow keys move along
- * it as they do in one, and only the position that is on takes a tab stop.
- */
-function ThemeSwitch({ mode, choose }: { mode: Mode; choose: (mode: Mode) => void }) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label="外观"
-      className="flex rounded-full border bg-card/85 p-0.5 shadow-md backdrop-blur"
-      onKeyDown={(e) => {
-        const by = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0
-        if (!by) return
-        e.preventDefault()
-        const next = (MODES.findIndex((m) => m.mode === mode) + by + MODES.length) % MODES.length
-        choose(MODES[next].mode)
-        ;(e.currentTarget.children[next] as HTMLElement).focus()
-      }}
-    >
-      {MODES.map(({ mode: m, icon: Icon, label }) => (
-        <button
-          key={m}
-          type="button"
-          role="radio"
-          aria-checked={mode === m}
-          aria-label={label}
-          title={label}
-          tabIndex={mode === m ? 0 : -1}
-          onClick={() => choose(m)}
-          className={cn(
-            "grid size-8 place-items-center rounded-full transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 max-md:size-7",
-            mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-primary",
-          )}
-        >
-          <Icon className="size-4 max-md:size-3.5" />
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/** Kept in the corner rather than the header, as the classic layout does. */
-function Toolbox({ mode, choose }: { mode: Mode; choose: (mode: Mode) => void }) {
+/** Back to the top of a long list, once it has been scrolled past. */
+function BackToTop() {
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const sync = () => setScrolled(scrollY > 200)
     addEventListener("scroll", sync, { passive: true })
     return () => removeEventListener("scroll", sync)
   }, [])
+  if (!scrolled) return null
   return (
-    <div className="fixed right-3 bottom-5 z-20 flex flex-col items-end gap-2.5 max-md:bottom-3">
-      {scrolled && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-9 rounded-full border bg-card/85 text-primary shadow-md backdrop-blur hover:bg-card hover:text-primary max-md:size-8"
-          title="回到顶部"
-          onClick={() => scrollTo({ top: 0, behavior: "smooth" })}
-        >
-          <ArrowUp />
-        </Button>
-      )}
-      <ThemeSwitch mode={mode} choose={choose} />
-    </div>
+    <Button
+      variant="outline"
+      size="icon"
+      className="fixed right-4 bottom-4 z-20 rounded-full shadow-md max-md:right-3 max-md:bottom-3"
+      title="回到顶部"
+      onClick={() => scrollTo({ top: 0, behavior: "smooth" })}
+    >
+      <ArrowUp />
+    </Button>
   )
 }
 
-function NavItem({ href, active, icon: Icon, children }: { href: string; active: boolean; icon: LucideIcon; children: ReactNode }) {
+/**
+ * One page of the two, in the segmented shape the theme switch beside it wears.
+ * A real anchor rather than a radio: a middle click still opens the page in a
+ * new tab.
+ */
+function NavTab({ href, active, icon: Icon, children }: { href: string; active: boolean; icon: LucideIcon; children: string }) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className="inline-flex items-center gap-1.5 px-3.5 text-sm transition-colors hover:text-primary aria-[current=page]:text-primary max-sm:px-2.5"
+      title={children}
+      className={cn(SEGMENT.item, "text-sm max-sm:px-2", active ? SEGMENT.on : SEGMENT.off)}
     >
-      <Icon className="size-3.5" />
-      {children}
+      <Icon />
+      {/* Icons alone on a phone, where the header also holds the site name, the
+          theme switch and the panel link. */}
+      <span className="max-sm:sr-only">{children}</span>
     </Link>
   )
 }
@@ -209,68 +177,101 @@ export default function App() {
 
   if (!me.public_page && !me.authed) return null
 
+  // One measure for the header, the page and the footer: 56rem, a reading
+  // width, since the table folds its wide-panel columns into the expanded row
+  // and the charts read better short.
+  const measure = "mx-auto w-full max-w-4xl px-4 max-md:px-3"
+
   return (
-    <div className="flex min-h-svh flex-col">
-      <header className="sticky top-0 z-10 border-b bg-nav shadow-[0_1px_10px_rgb(0_0_0/0.1)]">
-        <div className="mx-auto flex h-12 w-[95vw] max-w-[1680px] items-stretch max-md:w-full max-md:px-2">
-          <Link href="/" className="mr-5 flex min-w-0 items-center gap-2 text-lg max-sm:mr-1 max-sm:text-base">
+    // A faint wash under the cards, so they read as cards rather than as
+    // outlines on the page.
+    <div className="flex min-h-svh flex-col bg-muted/40">
+      {/* A bar floating over the page rather than spanning it: the same measure
+          as the cards, inset from the top, translucent and lifted, so it is not
+          read as one more of them. The gap above it is the header's own
+          padding, so it stays when the bar sticks; the padding lets clicks
+          through to what scrolls beneath. */}
+      <header className="pointer-events-none sticky top-0 z-10 px-4 pt-3 max-md:px-3 max-md:pt-2">
+        <div className="pointer-events-auto mx-auto flex h-12 w-full max-w-4xl items-center gap-3 rounded-xl border border-border/70 bg-background/80 pr-2 pl-4 shadow-lg shadow-black/5 backdrop-blur-md supports-[backdrop-filter]:bg-background/65 max-sm:gap-2 max-sm:pl-3">
+          <Link href="/" className="flex min-w-0 items-center gap-2 font-semibold tracking-tight">
             <img src="/favicon.svg" alt="" className="size-5 shrink-0" />
             <span className="truncate">{site}</span>
           </Link>
-          <nav className="flex shrink-0 items-stretch">
-            <NavItem href="/" active={open === null} icon={House}>首页</NavItem>
+          <nav aria-label="页面" className={cn(SEGMENT.list, "shrink-0")}>
+            <NavTab href="/" active={open === null} icon={House}>首页</NavTab>
             {sorted.length > 0 && (
-              <NavItem href={`/node/${open ?? sorted[0].id}`} active={open !== null} icon={ChartLine}>监控</NavItem>
+              <NavTab href={`/node/${open ?? sorted[0].id}`} active={open !== null} icon={ChartLine}>监控</NavTab>
             )}
           </nav>
-          {/* The panel is a separate app built into the hub, so this is a
-              navigation rather than a route. */}
-          <a href="/admin/" className="ml-auto inline-flex shrink-0 items-center gap-1.5 px-3.5 text-sm transition-colors hover:text-primary max-sm:px-2">
-            <UserRound className="size-3.5" />
-            <span className="max-sm:sr-only">{me.authed ? "后台" : "登录"}</span>
-          </a>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <Segmented
+              value={mode}
+              onChange={choose}
+              options={MODES}
+              label="外观"
+              className="max-sm:[&>button]:px-2"
+            />
+            {/* The panel is a separate app built into the hub, so this is a
+                navigation rather than a route. */}
+            <a
+              href="/admin/"
+              title={me.authed ? "后台" : "登录"}
+              className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <UserRound className="size-4" />
+              <span className="sr-only">{me.authed ? "后台" : "登录"}</span>
+            </a>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto w-[95vw] max-w-[1680px] flex-1 space-y-4 py-5 max-md:w-full max-md:px-2 max-md:py-2.5">
+      <main className={cn(measure, "flex-1 space-y-4 py-5 max-md:py-3")}>
         {error && (
-          <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {error}
           </p>
         )}
 
         {!nodes ? (
-          <Skeleton className="h-80" />
+          <Skeleton className="h-80 rounded-xl" />
         ) : open === null ? (
           sorted.length === 0 ? (
-            <p className="rounded-md border bg-card py-16 text-center text-sm text-muted-foreground shadow-sm">还没有节点</p>
+            <Card className="py-16 text-center text-sm text-muted-foreground">还没有节点</Card>
           ) : (
             <ServerTable nodes={sorted} />
           )
         ) : selected ? (
-          <div className="grid gap-5 rounded-md border bg-card p-5 text-card-foreground shadow-sm max-md:gap-3 max-md:p-2.5 md:grid-cols-[220px_minmax(0,1fr)]">
+          <Card className="grid gap-5 p-5 md:grid-cols-[200px_minmax(0,1fr)] max-md:gap-3 max-md:p-3">
             <NodePicker nodes={sorted} selected={selected.id} />
             <div className="min-w-0">
               <Suspense fallback={<Skeleton className="h-96" />}>
                 <NodeDetail node={selected} />
               </Suspense>
             </div>
-          </div>
+          </Card>
         ) : (
-          <p className="rounded-md border bg-card py-16 text-center text-sm text-muted-foreground shadow-sm">
-            节点不存在或未公开。<Link href="/" className="text-primary hover:underline">返回列表</Link>
-          </p>
+          <Card className="py-16 text-center text-sm text-muted-foreground">
+            节点不存在或未公开。<Link href="/" className="font-medium text-foreground hover:underline">返回列表</Link>
+          </Card>
         )}
       </main>
 
-      <footer className="pb-5 text-center text-xs text-muted-foreground max-md:pb-3">
-        {site} | ServerStatus | Powered by{" "}
-        <a href="https://github.com/monitor-probe/monitor" target="_blank" rel="noreferrer" className="hover:text-primary">
-          monitor
-        </a>
+      <footer>
+        <div className={cn(measure, "flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-t py-5 text-xs text-muted-foreground")}>
+          <span>
+            {site} · Powered by{" "}
+            <a href="https://github.com/monitor-probe/monitor" target="_blank" rel="noreferrer" className="font-medium hover:text-foreground">
+              monitor
+            </a>
+          </span>
+          <a href={theme.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-foreground">
+            <Palette className="size-3.5" />
+            主题 {theme.name} · {theme.author}
+          </a>
+        </div>
       </footer>
 
-      <Toolbox mode={mode} choose={choose} />
+      <BackToTop />
     </div>
   )
 }

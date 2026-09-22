@@ -30,13 +30,18 @@ export function deployed(node: Node) {
   return node.cpu_cores > 0 || node.mem_total > 0
 }
 
+/** Online, offline, or never heard from: a dot with a soft halo in the status colour. */
 export function Dot({ node, className }: { node: Node; className?: string }) {
   return (
     <span
       title={node.online ? "在线" : deployed(node) ? "离线" : "未接入"}
       className={cn(
-        "inline-block size-3 shrink-0 rounded-full align-middle",
-        node.online ? "bg-(image:--dot-online)" : deployed(node) ? "bg-(image:--dot-offline)" : "bg-muted-foreground/40",
+        "inline-block size-2.5 shrink-0 rounded-full align-middle",
+        node.online
+          ? "bg-emerald-500 shadow-[0_0_0_3px_rgb(16_185_129/0.18)]"
+          : deployed(node)
+            ? "bg-red-500 shadow-[0_0_0_3px_rgb(239_68_68/0.18)]"
+            : "bg-muted-foreground/40",
         className,
       )}
     />
@@ -85,12 +90,30 @@ export function OsIcon({ os, className }: { os: string; className?: string }) {
 }
 
 /**
- * The fill for a percentage: Bootstrap's green until 80, its amber to 90, its
- * red beyond. One ladder for every bar on the page, so a row's CPU and the
- * expanded row's traffic answer "how full" in the same colours.
+ * The fill for a percentage: green until 80, amber to 90, red beyond. One ladder
+ * for every meter on the page, so a row's CPU and the expanded row's traffic
+ * answer "how full" in the same colours.
  */
 export function barTone(pct: number): string {
-  return pct >= 90 ? "bg-(image:--bar-danger)" : pct >= 80 ? "bg-(image:--bar-warn)" : "bg-(image:--bar-ok)"
+  return pct >= 90 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500"
+}
+
+/**
+ * A capsule meter in shadcn's progress shape: a track one step off the surface,
+ * the fill in the status colour, the figure written beside it rather than on
+ * it. `children` are drawn over the fill, positioned against it.
+ */
+export function Meter({
+  pct, className, title, children,
+}: { pct: number | null; className?: string; title?: string; children?: ReactNode }) {
+  const v = pct === null ? 0 : Math.min(100, Math.max(0, pct))
+  return (
+    <div title={title} className={cn("h-1.5 w-full overflow-hidden rounded-full bg-primary/10", className)}>
+      <div className={cn("relative h-full rounded-full transition-[width] duration-500", barTone(v))} style={{ width: `${v}%` }}>
+        {children}
+      </div>
+    </div>
+  )
 }
 
 // The widest form each formatter writes, in `ch`, measured with tabular figures.

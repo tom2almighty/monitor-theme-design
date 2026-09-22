@@ -1,8 +1,8 @@
 {
-  "name": "ServerStatus",
-  "short": "serverstatus",
-  "description": "经典 ServerStatus 紧凑表格，支持暗色",
+  "name": "serverstatus-shadcnui",
+  "short": "serverstatus-shadcnui",
+  "description": "ServerStatus 的表格与胶囊条布局，shadcn/ui 风格，浅色、深色与跟随系统",
   "version": "1.1.0",
-  "author": "stqfdyr",
-  "url": "https://github.com/monitor-probe/monitor-theme-serverstatus"
+  "author": "tom2almighty",
+  "url": "https://github.com/tom2almighty/monitor-theme-serverstatus"
 }

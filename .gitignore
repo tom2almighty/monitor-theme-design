@@ -27,3 +27,11 @@ dist-ssr
 /docs/
 /CLAUDE.md
 /.claude/
+
+.claude
+.codex
+.agent
+.vscode
+
+theme.tar.gz
+theme.tar.gz.sha256

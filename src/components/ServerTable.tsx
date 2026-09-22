@@ -274,7 +274,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <CardTitle className="text-base">服务器列表</CardTitle>
-            <Badge variant="secondary" className="font-normal text-muted-foreground text-[11px]">
+            <Badge variant="secondary" className="font-normal text-secondary-foreground text-[11px]">
               {filteredNodes.length !== nodes.length ? `${filteredNodes.length} / ${nodes.length}` : `${nodes.length}`} 个节点
             </Badge>
           </div>

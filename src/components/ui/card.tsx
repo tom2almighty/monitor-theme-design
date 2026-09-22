@@ -2,11 +2,15 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+function Card({ className, style, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card"
-      className={cn("flex flex-col gap-4 rounded-xl border bg-card py-4 text-card-foreground shadow-xs", className)}
+      className={cn("flex flex-col gap-4 rounded-xl border py-4 text-card-foreground shadow-xs transition-colors backdrop-blur-md", className)}
+      style={{
+        backgroundColor: "color-mix(in oklch, var(--card) calc(var(--card-opacity, 1) * 100%), transparent)",
+        ...style,
+      }}
       {...props}
     />
   )

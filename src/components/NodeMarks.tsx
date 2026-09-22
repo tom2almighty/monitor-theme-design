@@ -62,13 +62,13 @@ export function Dot({ node, className }: { node: Node; className?: string }) {
   )
 }
 
-export function Flag({ code, className }: { code: string; className?: string }) {
+export function Flag({ code, className, showCode = true }: { code: string; className?: string; showCode?: boolean }) {
   if (!code) return <span className="text-muted-foreground">—</span>
   const src = FLAGS[code.toLowerCase()]
   return (
     <span className={cn("inline-flex items-center justify-center gap-1", className)}>
       {src && <img src={src} alt="" className="h-3 w-4 shrink-0 rounded-[2px] object-cover ring-1 ring-foreground/10" />}
-      <span className="@max-3xl:hidden">{code}</span>
+      {showCode && <span className="@max-3xl:hidden uppercase font-mono text-[11px] leading-none">{code}</span>}
     </span>
   )
 }

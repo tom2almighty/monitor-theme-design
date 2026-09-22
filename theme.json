@@ -1,8 +1,8 @@
 {
-  "name": "serverstatus-shadcnui",
-  "short": "serverstatus-shadcnui",
-  "description": "ServerStatus 的表格与胶囊条布局，shadcn/ui 风格，浅色、深色与跟随系统",
-  "version": "1.1.0",
+  "name": "monitor-theme-design",
+  "short": "Design",
+  "description": "Fork 自 stqfdyr/monitor-theme-serverstatus，融合 tweakcn 精选配色与 Zen Browser 噪点磨砂质感的现代化监控主题，支持深浅模式、实时换肤与无级质感微调",
+  "version": "1.0.0",
   "author": "tom2almighty",
-  "url": "https://github.com/tom2almighty/monitor-theme-serverstatus"
+  "url": "https://github.com/tom2almighty/monitor-theme-design"
 }

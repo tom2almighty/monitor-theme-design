@@ -23,7 +23,7 @@ export function NodePicker({ nodes, selected }: { nodes: Node[]; selected: numbe
           placeholder="搜索节点…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="h-8 pl-8 text-xs"
+          className="h-8.5 pl-8 text-sm md:text-sm"
         />
       </div>
       <nav className="min-h-0 space-y-1 overflow-y-auto pr-1">
@@ -33,11 +33,11 @@ export function NodePicker({ nodes, selected }: { nodes: Node[]; selected: numbe
             key={n.id}
             href={`/node/${n.id}`}
             aria-current={n.id === selected ? "page" : undefined}
-            className="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground aria-[current=page]:bg-accent aria-[current=page]:font-semibold aria-[current=page]:text-accent-foreground"
+            className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground aria-[current=page]:bg-accent aria-[current=page]:font-semibold aria-[current=page]:text-foreground"
           >
             <Dot node={n} className="size-2 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{n.name}</span>
-            <Flag code={n.country} className="text-xs shrink-0" />
+            <Flag code={n.country} showCode={false} className="shrink-0" />
           </Link>
         ))}
       </nav>

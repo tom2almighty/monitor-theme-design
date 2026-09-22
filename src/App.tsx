@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useState, useSyncExternalStore } from "react"
-import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sun, UserRound, type LucideIcon } from "lucide-react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sparkles, Sun, UserRound, type LucideIcon } from "lucide-react"
 
 import { NodePicker } from "@/components/NodePicker"
 import { ServerTable, ServerTableSkeleton } from "@/components/ServerTable"
@@ -9,6 +9,7 @@ import { SEGMENT, Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
 import { Link, useNodeRoute } from "@/lib/route"
+import { THEMES } from "@/lib/themes"
 import { cn } from "@/lib/utils"
 // The name, author and repository the footer credits, read from the manifest
 // the panel reads, so the two never disagree.
@@ -69,6 +70,7 @@ function useTheme() {
 
   return {
     mode,
+    dark,
     choose: (next: Mode) => {
       if (next === "system") localStorage.removeItem("theme")
       else localStorage.setItem("theme", next)
@@ -83,6 +85,213 @@ const MODES = [
   { value: "system" as const, label: <Monitor className="size-3.5" />, title: "跟随系统" },
   { value: "dark" as const, label: <Moon className="size-3.5" />, title: "深色" },
 ]
+
+/**
+ * Hook to manage dynamic tweakcn theme presets at runtime.
+ */
+function useThemePreset(dark: boolean) {
+  const [themeId, setThemeId] = useState<string>(() => {
+    const saved = localStorage.getItem("theme-preset")
+    return THEMES.some((t) => t.id === saved) ? saved! : "claude"
+  })
+
+  const activeTheme = useMemo(() => THEMES.find((t) => t.id === themeId) ?? THEMES[0], [themeId])
+
+  useEffect(() => {
+    const vars = dark ? activeTheme.dark : activeTheme.light
+    const root = document.documentElement
+    for (const [key, val] of Object.entries(vars)) {
+      root.style.setProperty(`--${key}`, String(val))
+    }
+    localStorage.setItem("theme-preset", themeId)
+  }, [activeTheme, dark, themeId])
+
+  return { themeId, setThemeId, activeTheme }
+}
+
+/**
+ * Hook to manage Zen Browser dual-parameter texture settings:
+ * 1. Grain (Perlin noise intensity, 0-100%)
+ * 2. Frosted Blur / Opacity (Container acrylic translucency, 0-100%)
+ */
+function useTextureSettings() {
+  const [grainPercent, setGrainPercent] = useState<number>(() => {
+    const saved = localStorage.getItem("theme-grain-percent")
+    if (saved !== null) {
+      const num = Number(saved)
+      if (!Number.isNaN(num) && num >= 0 && num <= 100) return num
+    }
+    const legacy = localStorage.getItem("theme-grain")
+    if (legacy === "off") return 0
+    if (legacy === "subtle") return 10
+    if (legacy === "film") return 35
+    return 16
+  })
+
+  const [frostedPercent, setFrostedPercent] = useState<number>(() => {
+    const saved = localStorage.getItem("theme-frosted-percent")
+    if (saved !== null) {
+      const num = Number(saved)
+      if (!Number.isNaN(num) && num >= 0 && num <= 100) return num
+    }
+    return 20 // Default 20% frosted translucency
+  })
+
+  useEffect(() => {
+    const root = document.documentElement
+    // Scale card opacity smoothly from 1.0 (0% frosted) down to 0.08 (100% frosted)
+    const cardAlpha = Math.max(0.08, 1 - (frostedPercent * 0.92) / 100)
+    root.style.setProperty("--card-opacity", String(cardAlpha))
+    localStorage.setItem("theme-frosted-percent", String(frostedPercent))
+  }, [frostedPercent])
+
+  useEffect(() => {
+    localStorage.setItem("theme-grain-percent", String(grainPercent))
+  }, [grainPercent])
+
+  return {
+    grainPercent,
+    setGrainPercent,
+    frostedPercent,
+    setFrostedPercent,
+  }
+}
+
+/**
+ * Zen Browser-style theme & dual-parameter texture control popover.
+ */
+function ThemeSettingsControl({
+  themeId,
+  onThemeChange,
+  grainPercent,
+  onGrainChange,
+  frostedPercent,
+  onFrostedChange,
+}: {
+  themeId: string
+  onThemeChange: (id: string) => void
+  grainPercent: number
+  onGrainChange: (val: number) => void
+  frostedPercent: number
+  onFrostedChange: (val: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("pointerdown", handleClick)
+    return () => document.removeEventListener("pointerdown", handleClick)
+  }, [open])
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "size-8 rounded-md transition-colors",
+          open ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+        )}
+        title="主题配色与质感设置"
+      >
+        <Sparkles className="size-3.5 text-primary" />
+        <span className="sr-only">主题与质感设置</span>
+      </Button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl border border-border/80 bg-popover p-3.5 text-popover-foreground shadow-xl backdrop-blur-md space-y-3.5">
+          {/* Section 1: 主题配色 (tweakcn presets) */}
+          <div>
+            <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
+              <span className="text-xs font-semibold">主题配色 (tweakcn)</span>
+              <span className="text-[10px] text-muted-foreground">实时换肤</span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {THEMES.map((t) => {
+                const active = themeId === t.id
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => onThemeChange(t.id)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition-all text-left cursor-pointer",
+                      active
+                        ? "border-primary bg-primary/10 text-foreground font-semibold shadow-2xs"
+                        : "border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground",
+                    )}
+                    title={t.desc}
+                  >
+                    <span
+                      className="size-3 rounded-full shrink-0 border border-black/10 dark:border-white/20 shadow-xs"
+                      style={{ backgroundColor: t.accentColor }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium leading-tight">{t.name}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Section 2: 参数 1 - 噪点强度 (Grain 0-100%) */}
+          <div className="pt-1 border-t border-border/50 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold">噪点强度 (Zen Grain)</span>
+              <span className="font-mono text-xs font-bold text-primary">{grainPercent}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={grainPercent}
+              onChange={(e) => onGrainChange(Number(e.target.value))}
+              className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary focus:outline-hidden"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+              <span>0% 无</span>
+              <span>20% 推荐</span>
+              <span>50% 明显</span>
+              <span>100% 极强</span>
+            </div>
+          </div>
+
+          {/* Section 3: 参数 2 - 磨砂透光度 (Frosted 0-100%) */}
+          <div className="pt-1 border-t border-border/50 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold">磨砂透光 (Frosted Blur)</span>
+              <span className="font-mono text-xs font-bold text-primary">{frostedPercent}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={frostedPercent}
+              onChange={(e) => onFrostedChange(Number(e.target.value))}
+              className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary focus:outline-hidden"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+              <span>0% 实心</span>
+              <span>20% 磨砂</span>
+              <span>50% 通透</span>
+              <span>100% 极透</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 /** Back to the top of a long list, once it has been scrolled past. */
 function BackToTop() {
@@ -127,7 +336,9 @@ function NavTab({ href, active, icon: Icon, children }: { href: string; active: 
 const CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8"
 
 export default function App() {
-  const { mode, choose } = useTheme()
+  const { mode, dark, choose } = useTheme()
+  const { themeId, setThemeId } = useThemePreset(dark)
+  const { grainPercent, setGrainPercent, frostedPercent, setFrostedPercent } = useTextureSettings()
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
   const { nodes, error, closed } = useNodes()
@@ -177,11 +388,16 @@ export default function App() {
 
   return (
     <div className="relative flex min-h-svh flex-col bg-background">
-      {/* Analog tactile noise overlay */}
-      <div
-        className="pointer-events-none fixed inset-0 z-50 select-none bg-noise opacity-[0.045] dark:opacity-[0.07]"
-        aria-hidden="true"
-      />
+      {/* Zen Browser-style tactile grain overlay */}
+      {grainPercent > 0 && (
+        <div
+          className="pointer-events-none fixed inset-0 z-50 select-none bg-noise transition-opacity duration-200"
+          style={{
+            opacity: Math.min(1, (grainPercent / 100) * (dark ? 0.95 : 0.88)),
+          }}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Standard full-width sticky navigation bar aligned with page measure */}
       <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
@@ -199,13 +415,21 @@ export default function App() {
             </nav>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 max-sm:gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <Segmented
               value={mode}
               onChange={choose}
               options={MODES}
               label="外观"
               className="max-sm:[&>button]:px-2"
+            />
+            <ThemeSettingsControl
+              themeId={themeId}
+              onThemeChange={setThemeId}
+              grainPercent={grainPercent}
+              onGrainChange={setGrainPercent}
+              frostedPercent={frostedPercent}
+              onFrostedChange={setFrostedPercent}
             />
             <a
               href="/admin/"

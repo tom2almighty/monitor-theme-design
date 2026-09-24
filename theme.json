@@ -2,7 +2,20 @@
   "name": "monitor-theme-design",
   "short": "Design",
   "description": "Fork 自 stqfdyr/monitor-theme-serverstatus，融合 tweakcn 精选配色与 Zen Browser 噪点磨砂质感的现代化监控主题，支持深浅模式、实时换肤与无级质感微调",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "author": "tom2almighty",
-  "url": "https://github.com/tom2almighty/monitor-theme-design"
+  "url": "https://github.com/tom2almighty/monitor-theme-design",
+  "config": [
+    { "type": "title", "label": "公告" },
+    { "key": "notice", "type": "text", "label": "站点公告", "default": "", "help": "显示在首页顶部，纯文本展示，留空不显示" },
+    { "type": "title", "label": "默认外观" },
+    { "key": "theme_preset", "type": "select", "label": "默认配色方案", "default": "claude", "options": [
+      { "value": "claude", "label": "Claude (暖陶)" },
+      { "value": "vercel", "label": "Vercel (极简黑白)" },
+      { "value": "twitter", "label": "Twitter (经典微蓝)" },
+      { "value": "default", "label": "shadcn/ui (原生岩灰)" }
+    ] },
+    { "key": "grain_percent", "type": "number", "label": "默认噪点强度 (%)", "default": 16, "min": 0, "max": 100, "help": "Zen Browser 质感噪点颗粒强度（0-100%）" },
+    { "key": "frosted_percent", "type": "number", "label": "默认磨砂透光度 (%)", "default": 20, "min": 0, "max": 100, "help": "卡片亚克力磨砂半透明度（0-100%）" }
+  ]
 }

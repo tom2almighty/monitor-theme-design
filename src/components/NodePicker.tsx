@@ -12,7 +12,7 @@ import { Link } from "@/lib/route"
 export function NodePicker({ nodes, selected }: { nodes: Node[]; selected: number }) {
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
-  const shown = q ? nodes.filter((n) => `${n.name} ${n.country} ${n.os}`.toLowerCase().includes(q)) : nodes
+  const shown = q ? nodes.filter((n) => `${n.name} ${n.country} ${n.os} ${n.group ?? ""}`.toLowerCase().includes(q)) : nodes
 
   return (
     <aside className="flex min-h-0 flex-col gap-2.5 max-md:max-h-56 max-md:border-b max-md:pb-3 md:sticky md:top-[4.75rem] md:max-h-[calc(100svh-6rem)] md:self-start md:border-r md:border-border/70 md:pr-4">
@@ -37,6 +37,11 @@ export function NodePicker({ nodes, selected }: { nodes: Node[]; selected: numbe
           >
             <Dot node={n} className="size-2 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{n.name}</span>
+            {n.group && (
+              <span className="shrink-0 text-[10px] text-muted-foreground/70 bg-muted/60 px-1.5 py-0.5 rounded font-normal">
+                {n.group}
+              </span>
+            )}
             <Flag code={n.country} showCode={false} className="shrink-0" />
           </Link>
         ))}

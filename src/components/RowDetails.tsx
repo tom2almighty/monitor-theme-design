@@ -67,7 +67,7 @@ function PeriodMeter({ used, today, limit, title }: { used: number; today: numbe
 function Overview({ node }: { node: Node }) {
   const m = node.online ? node.metrics : null
   const away = node.last_seen ? Date.now() / 1000 - node.last_seen : 0
-  const days = daysUntil(node.expires_at)
+  const days = node.expires_in !== undefined ? node.expires_in : daysUntil(node.expires_at)
   const used = monthUsage(node)
   const today = dayUsage(node)
   const limit = node.traffic_limit
@@ -84,11 +84,18 @@ function Overview({ node }: { node: Node }) {
       <Block
         title="系统信息"
         aside={
-          node.agent_version && (
-            <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal text-muted-foreground">
-              v{node.agent_version}
-            </Badge>
-          )
+          <div className="flex items-center gap-1.5">
+            {node.group && (
+              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-normal">
+                {node.group}
+              </Badge>
+            )}
+            {node.agent_version && (
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal text-muted-foreground">
+                v{node.agent_version}
+              </Badge>
+            )}
+          </div>
         }
       >
         <Line label="系统">

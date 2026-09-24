@@ -28,7 +28,7 @@ function Bar({ pct, label }: { pct: number | null; label?: string }) {
 }
 
 function Expiry({ node }: { node: Node }) {
-  const days = daysUntil(node.expires_at)
+  const days = node.expires_in !== undefined ? node.expires_in : daysUntil(node.expires_at)
   if (days === null) return <span className="text-muted-foreground" title="永不到期">{FOREVER}</span>
   if (days < 0) return <Badge variant="destructive" className="px-1.5 py-0 text-[10px] font-normal">已过期</Badge>
   if (days <= 7) return <Badge variant="warning" className="px-1.5 py-0 text-[10px] font-normal">{days} 天</Badge>
@@ -146,13 +146,13 @@ function Row({ node }: { node: Node }) {
         <TableCell className={COL.speed}>
           {m ? (
             <div className="inline-flex items-center justify-center text-xs @max-3xl:flex @max-3xl:flex-col @max-3xl:items-center @max-3xl:gap-0.5 @max-3xl:text-[9px] @max-3xl:leading-none">
-              <span className="inline-flex items-center">
-                <span className="text-emerald-600 dark:text-emerald-400 mr-0.5 font-mono">↓</span>
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0 @max-3xl:size-2.5" />
                 <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_rx)}</Num>
               </span>
               <span className="mx-1 text-muted-foreground/60 @max-3xl:hidden">|</span>
-              <span className="inline-flex items-center">
-                <span className="text-blue-600 dark:text-blue-400 mr-0.5 font-mono">↑</span>
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0 @max-3xl:size-2.5" />
                 <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_tx)}</Num>
               </span>
             </div>
@@ -248,15 +248,31 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
     }
   }
 
-  const online = nodes.filter((n) => n.online && n.metrics)
-  const live = (pick: (m: NonNullable<Node["metrics"]>) => number) => online.reduce((total, n) => total + pick(n.metrics!), 0)
-  const all = (pick: (n: Node) => number) => nodes.reduce((total, n) => total + pick(n), 0)
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
 
-  const sortedNodes = useMemo(() => sortNodes(nodes, sortField, sortOrder), [nodes, sortField, sortOrder])
+  const groups = useMemo(() => {
+    return [...new Set(nodes.map((n) => n.group ?? "").filter(Boolean))]
+  }, [nodes])
+
+  const hasUngrouped = useMemo(() => {
+    return groups.length > 0 && nodes.some((n) => !(n.group ?? ""))
+  }, [groups, nodes])
+
+  const groupNodes = useMemo(() => {
+    if (selectedGroup === null) return nodes
+    if (selectedGroup === "") return nodes.filter((n) => !(n.group ?? ""))
+    return nodes.filter((n) => n.group === selectedGroup)
+  }, [nodes, selectedGroup])
+
+  const online = groupNodes.filter((n) => n.online && n.metrics)
+  const live = (pick: (m: NonNullable<Node["metrics"]>) => number) => online.reduce((total, n) => total + pick(n.metrics!), 0)
+  const all = (pick: (n: Node) => number) => groupNodes.reduce((total, n) => total + pick(n), 0)
+
+  const sortedNodes = useMemo(() => sortNodes(groupNodes, sortField, sortOrder), [groupNodes, sortField, sortOrder])
   const q = query.trim().toLowerCase()
   const filteredNodes = useMemo(() => {
     if (!q) return sortedNodes
-    return sortedNodes.filter((n) => `${n.name} ${n.country} ${n.os}`.toLowerCase().includes(q))
+    return sortedNodes.filter((n) => `${n.name} ${n.country} ${n.os} ${n.group ?? ""}`.toLowerCase().includes(q))
   }, [sortedNodes, q])
 
   const heads: [keyof typeof COL, ReactNode, SortField?][] = [
@@ -305,7 +321,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.2)]" />
             <span className="text-muted-foreground">在线</span>
             <span className="font-semibold text-foreground">
-              <Num ch={String(nodes.length).length}>{nodes.filter((n) => n.online).length}</Num> / {nodes.length}
+              <Num ch={String(groupNodes.length).length}>{groupNodes.filter((n) => n.online).length}</Num> / {groupNodes.length}
             </span>
           </div>
 
@@ -314,11 +330,15 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             title="在线节点此刻的下行与上行之和"
           >
             <span className="text-muted-foreground">网速</span>
-            <span className="font-semibold text-foreground">
-              <span className="text-emerald-600 dark:text-emerald-400">↓</span>{" "}
-              <Num ch={SLOT.compact}>{compact(live((m) => m.net_rx))}</Num>/s{" "}
-              <span className="text-blue-600 dark:text-blue-400">↑</span>{" "}
-              <Num ch={SLOT.compact}>{compact(live((m) => m.net_tx))}</Num>/s
+            <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <Num ch={SLOT.compact}>{compact(live((m) => m.net_rx))}</Num>/s
+              </span>
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                <Num ch={SLOT.compact}>{compact(live((m) => m.net_tx))}</Num>/s
+              </span>
             </span>
           </div>
 
@@ -327,9 +347,15 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             title="所有节点本期的下载与上传之和"
           >
             <span className="text-muted-foreground">本月</span>
-            <span className="font-semibold text-foreground">
-              ↓ <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_rx))}</Num>{" "}
-              ↑ <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_tx))}</Num>
+            <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_rx))}</Num>
+              </span>
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_tx))}</Num>
+              </span>
             </span>
           </div>
 
@@ -338,13 +364,69 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             title="所有节点自接入以来的下载与上传之和"
           >
             <span className="text-muted-foreground">累计</span>
-            <span className="font-semibold text-foreground">
-              ↓ <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_rx))}</Num>{" "}
-              ↑ <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_tx))}</Num>
+            <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_rx))}</Num>
+              </span>
+              <span className="inline-flex items-center gap-0.5 leading-none">
+                <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_tx))}</Num>
+              </span>
             </span>
           </div>
         </div>
       </CardHeader>
+
+      {/* Group selector pill bar (renders only when node groups exist) */}
+      {groups.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border/60 bg-muted/20 px-3 py-2 text-xs scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setSelectedGroup(null)}
+            className={cn(
+              "shrink-0 rounded-md px-2.5 py-1 text-xs transition-colors cursor-pointer",
+              selectedGroup === null
+                ? "bg-primary text-primary-foreground font-medium shadow-2xs"
+                : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground",
+            )}
+          >
+            全部 ({nodes.length})
+          </button>
+          {groups.map((g) => {
+            const count = nodes.filter((n) => n.group === g).length
+            return (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setSelectedGroup(g)}
+                className={cn(
+                  "shrink-0 rounded-md px-2.5 py-1 text-xs transition-colors cursor-pointer",
+                  selectedGroup === g
+                    ? "bg-primary text-primary-foreground font-medium shadow-2xs"
+                    : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {g} ({count})
+              </button>
+            )
+          })}
+          {hasUngrouped && (
+            <button
+              type="button"
+              onClick={() => setSelectedGroup("")}
+              className={cn(
+                "shrink-0 rounded-md px-2.5 py-1 text-xs transition-colors cursor-pointer",
+                selectedGroup === ""
+                  ? "bg-primary text-primary-foreground font-medium shadow-2xs"
+                  : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground",
+              )}
+            >
+              未分组 ({nodes.filter((n) => !(n.group ?? "")).length})
+            </button>
+          )}
+        </div>
+      )}
 
       <CardContent className="p-0">
         <Table className="text-center text-sm @max-3xl:table-fixed @max-3xl:text-[10px]">

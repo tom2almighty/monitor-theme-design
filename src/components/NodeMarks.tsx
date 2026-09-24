@@ -153,7 +153,7 @@ export const SLOT = { compact: 5.6, bytes: 7.3, rate: 10.2 }
 export function Num({ ch, className, children }: { ch: number; className?: string; children: ReactNode }) {
   return (
     <span
-      className={cn("tnum inline-block min-w-(--slot) text-right", className)}
+      className={cn("tnum inline-block min-w-(--slot) text-right align-middle", className)}
       style={{ "--slot": `${ch}ch` } as CSSProperties}
     >
       {children}

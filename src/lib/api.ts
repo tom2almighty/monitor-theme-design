@@ -45,6 +45,10 @@ export type Node = {
   currency: string
   billing_cycle: string
   expires_at: string | null
+  /** Remaining days to expiration calculated by hub date. 0 is today, negative is expired, null is no expiration. */
+  expires_in?: number | null
+  /** Group name set by admin on panel. Empty string or undefined means ungrouped. */
+  group?: string
   traffic_limit: number
   traffic_mode: string
   traffic_reset_day: number

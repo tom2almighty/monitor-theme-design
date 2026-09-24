@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
 import { Link, useNodeRoute } from "@/lib/route"
 import { THEMES } from "@/lib/themes"
+import { loadConfig, saveConfig } from "@/lib/config"
 import { cn } from "@/lib/utils"
 // The name, author and repository the footer credits, read from the manifest
 // the panel reads, so the two never disagree.
@@ -167,6 +168,7 @@ function ThemeSettingsControl({
   onGrainChange,
   frostedPercent,
   onFrostedChange,
+  authed,
 }: {
   themeId: string
   onThemeChange: (id: string) => void
@@ -174,9 +176,31 @@ function ThemeSettingsControl({
   onGrainChange: (val: number) => void
   frostedPercent: number
   onFrostedChange: (val: number) => void
+  authed?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const handleSaveDefault = async () => {
+    setSaving(true)
+    setSaveStatus(null)
+    try {
+      await saveConfig({
+        theme_preset: themeId,
+        grain_percent: grainPercent,
+        frosted_percent: frostedPercent,
+      })
+      setSaveStatus("已设为全站默认")
+      setTimeout(() => setSaveStatus(null), 2500)
+    } catch (e: unknown) {
+      setSaveStatus(e instanceof Error ? e.message : "保存失败")
+      setTimeout(() => setSaveStatus(null), 3000)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -287,6 +311,21 @@ function ThemeSettingsControl({
               <span>100% 极透</span>
             </div>
           </div>
+
+          {/* Section 4: 站长保存为站点默认 */}
+          {authed && (
+            <div className="pt-2 border-t border-border/50">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs h-7.5 cursor-pointer"
+                disabled={saving}
+                onClick={handleSaveDefault}
+              >
+                {saveStatus ?? (saving ? "保存中…" : "保存为全站默认外观")}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -339,6 +378,7 @@ export default function App() {
   const { mode, dark, choose } = useTheme()
   const { themeId, setThemeId } = useThemePreset(dark)
   const { grainPercent, setGrainPercent, frostedPercent, setFrostedPercent } = useTextureSettings()
+  const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
   const { nodes, error, closed } = useNodes()
@@ -352,6 +392,18 @@ export default function App() {
 
   useEffect(() => {
     loadMe()
+    loadConfig().then((cfg) => {
+      setConfig(cfg)
+      if (!localStorage.getItem("theme-preset") && typeof cfg.theme_preset === "string") {
+        setThemeId(cfg.theme_preset)
+      }
+      if (localStorage.getItem("theme-grain-percent") === null && typeof cfg.grain_percent === "number") {
+        setGrainPercent(cfg.grain_percent)
+      }
+      if (localStorage.getItem("theme-frosted-percent") === null && typeof cfg.frosted_percent === "number") {
+        setFrostedPercent(cfg.frosted_percent)
+      }
+    }).catch(() => {})
     void loadDetail()
   }, [loadMe])
 
@@ -430,6 +482,7 @@ export default function App() {
               onGrainChange={setGrainPercent}
               frostedPercent={frostedPercent}
               onFrostedChange={setFrostedPercent}
+              authed={me.authed}
             />
             <a
               href="/admin/"
@@ -445,6 +498,13 @@ export default function App() {
 
       {/* Main body with unified container width */}
       <main className={cn(CONTAINER_CLASS, "flex-1 space-y-6 py-6 max-md:py-4")}>
+        {config?.notice && String(config.notice).trim() && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground shadow-2xs">
+            <span className="font-semibold text-primary shrink-0">公告</span>
+            <div className="min-w-0 flex-1 whitespace-pre-wrap">{String(config.notice).trim()}</div>
+          </div>
+        )}
+
         {error && (
           <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {error}

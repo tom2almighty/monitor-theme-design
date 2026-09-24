@@ -1,133 +1,387 @@
-开发指南
+主题是一个纯静态的单页应用，决定公开状态页的样子。hub 只把它当静态文件提供：不编译、不注入、不提供
+构建期变量。
 
-# 主题开发
+后台和登录页始终由 hub 内置提供，不属于主题，主题不必实现节点管理、OAuth 和密码设置。
 
-本页内容
-
-- [主题包](https://monitor-document.pages.dev/dev/theme#%E4%B8%BB%E9%A2%98%E5%8C%85)
-- [theme.json](https://monitor-document.pages.dev/dev/theme#themejson)
-- [上限](https://monitor-document.pages.dev/dev/theme#%E4%B8%8A%E9%99%90)
-- [可以用的接口](https://monitor-document.pages.dev/dev/theme#%E5%8F%AF%E4%BB%A5%E7%94%A8%E7%9A%84%E6%8E%A5%E5%8F%A3)
-- [匿名拿不到什么](https://monitor-document.pages.dev/dev/theme#%E5%8C%BF%E5%90%8D%E6%8B%BF%E4%B8%8D%E5%88%B0%E4%BB%80%E4%B9%88)
-- [三种要处理的状态](https://monitor-document.pages.dev/dev/theme#%E4%B8%89%E7%A7%8D%E8%A6%81%E5%A4%84%E7%90%86%E7%9A%84%E7%8A%B6%E6%80%81)
-- [路由](https://monitor-document.pages.dev/dev/theme#%E8%B7%AF%E7%94%B1)
-- [本地开发](https://monitor-document.pages.dev/dev/theme#%E6%9C%AC%E5%9C%B0%E5%BC%80%E5%8F%91)
-- [安装与切换](https://monitor-document.pages.dev/dev/theme#%E5%AE%89%E8%A3%85%E4%B8%8E%E5%88%87%E6%8D%A2)
-- [参考实现](https://monitor-document.pages.dev/dev/theme#%E5%8F%82%E8%80%83%E5%AE%9E%E7%8E%B0)
-
-主题是纯静态 SPA，决定公开状态页长什么样。hub 把它当文件伺服：不编译，不注入，不提供构建期变量。
-
-后台和登录页始终由 hub 内置提供，不属于主题，所以主题不必重做节点管理、OAuth 和密码设置。
-
-## 主题包 [链接到本节](https://monitor-document.pages.dev/dev/theme\#%E4%B8%BB%E9%A2%98%E5%8C%85)
+## 主题包
 
 一个可安装主题是一个目录，名字必须和 `theme.json` 里的 `short` 相同：
 
-```
+```text
 <themes-dir>/<short>/
 ├── theme.json
-├── preview.png        # 可选，面板上的预览图。文件名是约定，不是字段
+├── preview.png        # 可选，面板上的预览图，文件名固定
 └── dist/
     └── index.html
 ```
 
 发布时打成 `theme.tar.gz`，解开就是这个目录。
 
-### theme.json [链接到本节](https://monitor-document.pages.dev/dev/theme\#themejson)
+### theme.json
 
-字段都是字符串：
+`name` 到 `url` 六个字段**都要写**，都是字符串，后四个可以是空字符串；`config` 可以不写：
 
-| 字段 | 必需 | 含义 |
-| --- | --- | --- |
-| `name` | 是 | 显示名称 |
-| `short` | 是 | 唯一短名，限字母、数字、`-`、`_`。取 `default` 则顶替 hub 内置的那份 |
-| `description` | 否 | 简介 |
-| `version` | 否 | 主题版本 |
-| `author` | 否 | 作者 |
-| `url` | 否 | 源码地址。指向 GitHub 仓库时，面板的一键更新从它的 release 取 `theme.tar.gz` |
+| 字段 | 可留空 | 含义 |
+|---|---|---|
+| `name` | 否 | 显示名称 |
+| `short` | 否 | 唯一短名，限字母、数字、`-`、`_`。取 `default` 则顶替 hub 内置的那份 |
+| `description` | 是 | 简介 |
+| `version` | 是 | 主题版本。用一键更新时要和 release 的 tag 对上（`v1.2.0` 对 `1.2.0`），否则每次都会重装一遍 |
+| `author` | 是 | 作者 |
+| `url` | 是 | 源码地址。指向 GitHub 仓库时，面板的一键更新从它的 release 取 `theme.tar.gz` |
+| `config` | 可不写 | 数组，站长可调的设置，面板按它画表单。见下文[主题设置](#主题设置) |
 
-### 上限 [链接到本节](https://monitor-document.pages.dev/dev/theme\#%E4%B8%8A%E9%99%90)
+少写一个字段时，在面板上传会被拒绝，并指出缺的是哪个；直接放进 hub 的 `--themes` 目录的，主题不会
+出现在列表里，hub 日志里有一条警告。
+
+### 上限
 
 | 限制 | 值 |
-| --- | --- |
+|---|---|
 | 整包 | 32 MiB |
-| 解压总量 | 64 MiB |
+| 解压后总量 | 64 MiB |
 | 单个文件 | 8 MiB |
+| 文件和目录数 | 2000 |
 
-解压总量要和上传上限分开限制，gz 的压缩比没有上界。
+只接受普通文件和目录，包里有符号链接等其他类型时拒绝安装。
 
-## 可以用的接口 [链接到本节](https://monitor-document.pages.dev/dev/theme\#%E5%8F%AF%E4%BB%A5%E7%94%A8%E7%9A%84%E6%8E%A5%E5%8F%A3)
+## 可以用的接口
 
-只有这四个，全部同源：
+读取接口只有这五个，都是同源请求。主题自带设置界面时还会用到 `PUT`，见下文[主题自带的设置界面](#主题自带的设置界面)。
 
 | 接口 | 用途 |
-| --- | --- |
+|---|---|
 | `GET /api/me` | 站点名、登录状态、公开页开关 |
 | `GET /api/nodes` | 节点列表、实时指标、累计流量 |
 | `GET /api/nodes/{id}/metrics` | 历史指标和延迟记录 |
 | `GET /api/ws` | 每 2 秒推送一次节点快照的 WebSocket |
+| `GET /api/themes/{short}/config` | 站长在面板里保存的主题设置，见下文[主题设置](#主题设置) |
 
 `metrics` 的三个查询参数都可以省：
 
-- `hours=N` 窗口宽度。匿名上限 168，登录后 2160，超出静默收窄
-- `points=W` 画得下几个点。只会让 hub 抽得更稀，不会更密
-- `series=metrics|ping` 只取要画的那一半，省掉的那半原本占响应的三分之一到三分之二
+- `hours=N`：窗口宽度，默认 6。匿名上限 168，登录后 2160，超出时静默收窄
+- `points=W`：图表能画下的点数，60–1440。只会让 hub 抽得更稀，不会更密
+- `series=metrics|ping`：只取要画的那一类，另一类占响应的三分之一到三分之二
 
-探测曲线的名字在响应的 `probes` 里随样本一起下发，匿名可读，所以画延迟图不需要第二个请求，也不需要管理员身份。
+延迟监控的名称在响应的 `probes` 里随数据一起返回，匿名可读，画延迟图不需要第二个请求，也不需要登录。
 
-## 匿名拿不到什么 [链接到本节](https://monitor-document.pages.dev/dev/theme\#%E5%8C%BF%E5%90%8D%E6%8B%BF%E4%B8%8D%E5%88%B0%E4%BB%80%E4%B9%88)
+## 到期天数
+
+`/api/nodes` 和 `/api/ws` 推送的快照里，每个节点带一个 `expires_in`：按 hub 的日期算的剩余天数，0 是今天
+到期，负数是已过期的天数，没有到期日为 `null`。
+
+显示「N 天后到期」「已过期」用它，不要拿 `expires_at` 按浏览器的时钟自己算。hub 按自己所在时区的日期给
+在线节点顺延到期日；访客在别的时区时，自己算会让在线节点在顺延之前显示几个小时的「已过期」。
+
+hub 1.2.0 及更早没有这个 key，只有这时才按 `expires_at` 自己算。`null` 表示没有到期日，要和「没有这个
+key」分开判断：
+
+```ts
+// 旧 hub 没有 expires_in，才按浏览器时钟自己算；daysUntil 由主题自己实现
+const days = node.expires_in !== undefined
+  ? node.expires_in
+  : daysUntil(node.expires_at)
+```
+
+## 节点分组
+
+`/api/nodes` 和 `/api/ws` 推送的快照里，每个节点带一个 `group`：站长在面板上设的分组名，公开可读，
+空字符串表示未分组。hub 1.2.0 及更早没有这个 key，按空字符串处理。
+
+```ts
+// 按节点顺序收集用到的分组；旧 hub 没有 group 字段
+const groups = [...new Set(nodes.map((n) => n.group ?? "").filter(Boolean))]
+```
+
+- **分组按节点顺序排，不按名字排。** 站长在面板上拖动节点来排分组，每个分组第一次出现的位置就是它
+  的位置
+- **一个分组都没有时，页面和没有分组功能时一样。** 只有部分节点有分组时，其余节点要有「未分组」这样的
+  去处，不能藏起来
+- **分组名是任意文本**，最多 13 个字，可能叫 `*`、`all`、`none`，也可能就叫「全部」「未分组」。「全部」
+  「未分组」这类标签的取值不要和分组名混在同一个字符串空间里，比如用 `null` 表示全部
+- **分组可能有几十个。** 横排的标签要能滚动或换行
+- 按分组切换时，汇总数字（在线数、流量、网速）跟着这一组算，不要一半跟着分组、一半是全站
+
+## 主题设置
+
+公告、布局、显示哪些区块这类**整个站点共用**的选项，在 `theme.json` 的 `config` 里声明。面板**主题**页的
+卡片上随之出现设置按钮，按声明画出表单；站长保存后，值存在 hub 的数据库里，主题运行时读取。
+
+这是站点级设置唯一的存放处，下面两种做法都不要用：
+
+- **存进 `localStorage`**：只在站长自己的浏览器里生效，访客和站长的其它设备都看不到
+- **让站长改 `dist/` 里的文件**：更新、重装主题都是整个目录替换，改过的文件随之消失
+
+某位访客自己的偏好（深浅色、排序方式）不属于站点设置，仍然放 `localStorage`。
+
+### 声明
+
+下面只列出 `config`，其余六个字段照常要写：
+
+```json
+{
+  "config": [
+    { "type": "title", "label": "首页" },
+    { "key": "notice", "type": "text", "label": "公告",
+      "default": "", "help": "显示在页面顶部，留空不显示" },
+    { "key": "layout", "type": "select", "label": "布局",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "卡片" },
+        { "value": "table", "label": "表格" }
+      ] },
+    { "key": "show_map", "type": "boolean", "label": "显示地图",
+      "default": true },
+    { "key": "columns", "type": "number", "label": "每行卡片数",
+      "default": 3, "min": 1, "max": 6 }
+  ]
+}
+```
+
+| 字段 | 必需 | 含义 |
+|---|---|---|
+| `key` | 是 | 读取时用的名字，同一个主题里不能重复 |
+| `type` | 是 | `string` 单行文本、`text` 多行文本、`number` 数字、`boolean` 开关、`select` 下拉 |
+| `default` | 是 | 默认值，类型要和 `type` 对得上；`select` 的默认值必须是某个选项的 `value` |
+| `label` | 否 | 表单上显示的名称，字符串，不写就显示 `key` |
+| `help` | 否 | 表单上的一行说明，字符串 |
+| `options` | `select` 必需 | `[{ "value": "...", "label": "..." }]`，`value` 是非空字符串，`label` 是字符串、不写就显示 `value` |
+| `min`、`max` | 否 | `number` 的取值范围，面板按它拦下越界的输入 |
+
+`{ "type": "title", "label": "..." }` 是分组标题：只有 `label`，不存值，它后面的设置项归入这一组，第一个
+标题之前的归入「通用」。面板按设置项的多少排版：
+
+| 设置项 | 面板里的样子 |
+|---|---|
+| 6 项以内 | 单列，分组标题显示为小标题 |
+| 超过 6 项 | 对话框加宽，两列显示 |
+| 超过 6 项，且分成两组以上 | 左侧列出各组，右侧只显示当前这一组 |
+
+没有设置项的分组标题不算一组。设置项超过十来个时写分组标题，否则站长面对的是一整页看不出归属的选项。
+加分组标题只改 `theme.json`，读取代码不用动：下面的示例代码会跳过分组标题。
+
+面板逐项检查，**不合格的那一项不显示，其余照常**：`key` 重复、`type` 不认识、`default` 与类型不符、
+`label` 或 `help` 不是字符串、`select` 缺选项、分组标题没有 `label` 都算。改完 `theme.json` 装到 hub 上
+打开设置看一眼，缺了哪一项，就是哪一项写错了。
+
+### 读取
+
+```text
+GET /api/themes/{short}/config
+```
+
+返回站长改过的项，**没改过的不在里面**：
+
+```json
+{ "notice": "今晚 23:00 维护", "show_map": false }
+```
+
+- 从没保存过：`{}`
+- 公开页关闭时，未登录的请求得到 401，条件和 `/api/nodes` 一样
+- hub 1.2.0 及更早的版本没有这个接口，得到 404
+- 不要求主题已安装，任何 `short` 都能读。开发服务器代理到现成的 hub 时，读到的就是这个主题自己的设置；
+  写入则要求主题已装在这个 hub 上
+
+401、404 和网络错误一律按默认值渲染，不要报错，也不要为此显示提示。
+
+hub 只存改过的项，默认值由主题自己补。这样主题作者在新版本里改了某个默认值，没动过这一项的站点会跟着
+变，改过的站点保持站长的选择。
+
+### 示例代码
+
+默认值只在 `theme.json` 里写一遍，构建时导入（Vite 直接支持；TypeScript 需要 `resolveJsonModule`，
+`moduleResolution: "bundler"` 下默认开启）：
+
+```ts
+// src/lib/config.ts
+import manifest from "../../theme.json"
+
+type Field = {
+  key: string
+  type: string
+  default: unknown
+  options?: { value: string }[]
+  min?: number
+  max?: number
+}
+
+// 和面板同一套取值检查。保存的值可能来自这个主题的旧版本，
+// 与当前声明对不上的，当作没有保存过
+function fits(field: Field, value: unknown): boolean {
+  switch (field.type) {
+    case "boolean":
+      return typeof value === "boolean"
+    case "number":
+      return typeof value === "number" && Number.isFinite(value)
+        && value >= (field.min ?? -Infinity) && value <= (field.max ?? Infinity)
+    case "select":
+      return !!field.options?.some((option) => option.value === value)
+    default:
+      return typeof value === "string"
+  }
+}
+
+// 分组标题（type 为 title）不存值
+export const fields = (manifest.config as Field[]).filter((f) => f.type !== "title")
+
+export async function loadConfig(): Promise<Record<string, unknown>> {
+  let saved: Record<string, unknown> = {}
+  try {
+    const res = await fetch(`/api/themes/${manifest.short}/config`)
+    if (res.ok) saved = await res.json()
+  } catch {
+    // 断网同样按默认值
+  }
+  const pick = (f: Field) => (fits(f, saved[f.key]) ? saved[f.key] : f.default)
+  return Object.fromEntries(fields.map((f) => [f.key, pick(f)]))
+}
+```
+
+页面启动时和 `/api/me`、`/api/nodes` 并行请求，不要排在它们后面。
+
+主题还想让访客在自己的浏览器里再调一层（比如深浅色）时，优先级从低到高是：`theme.json` 默认值、hub 里的
+站点设置、这位访客的 `localStorage`。
+
+### 主题自带的设置界面
+
+配色、背景这类要边调边看的设置，主题可以在公开页上提供自己的设置界面，站长登录后（`/api/me` 的
+`authed` 为 `true`）直接保存到 hub：
+
+```ts
+// 接在上面的 src/lib/config.ts 里。
+// values 是设置界面里当前的值，每个 key 一项
+export async function saveConfig(values: Record<string, unknown>): Promise<void> {
+  const url = `/api/themes/${manifest.short}/config`
+  // 先读 hub 里原始的那份，不是 loadConfig() 合并过默认值的结果
+  const read = await fetch(url)
+  if (!read.ok) throw new Error(await read.text())
+  const next: Record<string, unknown> = await read.json()
+  // 只改声明过的项，其余 key 原样留下；等于默认值的删掉
+  for (const f of fields) {
+    if (values[f.key] === f.default) delete next[f.key]
+    else next[f.key] = values[f.key]
+  }
+  // 站长登录时才有权限。失败要让站长看到，不能当作已保存
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(next),
+  })
+  if (!res.ok) throw new Error(await res.text())
+}
+```
+
+body 是整个设置对象，会替换已保存的那份，规则和面板相同：
+
+- **只放与默认值不同的项**，站长改回默认值的项要从对象里删掉
+- **先读后写，保留不认识的 key**：面板和其他版本的主题可能存过当前代码不认识的项
+- 值要符合 `theme.json` 里的声明，面板也会读到它们
+- 整个对象不超过 64 KiB，超过得到 413
+- 主题要已装在这个 hub 上，否则得到 400；未登录得到 401
+
+面板上的设置按钮始终都在，两边改的是同一份数据。主题自带的界面只是多一个入口，`theme.json` 里的
+声明仍然要写全。
+
+### 约定
+
+- **`key` 发布后不改名。** 改名等于丢掉站长已经保存的值；含义或类型变了就换一个新 `key`。旧值留在
+  hub 里，不影响显示，但访客仍能读到；站长在面板里点「恢复默认」再保存，会连同这些旧值一起清掉
+- **设置是公开的。** 所有访客都能读到，不要设计让站长填密钥、token 或内网地址的字段。面板的设置
+  对话框里也这样提示站长
+- **设置管显示，不管权限。** 主题里「不显示价格」只是不画，接口里照样有；要对访客真正隐藏的数据，
+  得由 hub 不输出。见下文[匿名拿不到什么](#匿名拿不到什么)
+- **原始 HTML 不进页面。** 文本按纯文本渲染：React 里直接写 `{notice}`，原生 DOM 用 `textContent`。
+  公告这类要排版的，可以按 Markdown 渲染，但渲染器必须转义其中的 HTML，链接只放行 `http:`、`https:`、
+  `mailto:`。不要把设置值交给 `innerHTML`、`dangerouslySetInnerHTML` 或 `v-html`
+
+## 匿名拿不到什么
 
 匿名访问 `GET /api/nodes` 只返回公开的节点，响应里没有地址（`ip`、`ipv4`、`ipv6`、`ipv4_pin`、`ipv6_pin`）、
-`hostname`、`remark`、`token` 这些 key——不是空字符串，是根本不存在。国家码只给一个 `country`，手填优先。
+`hostname`、`remark`、`token` 这些 key：不是空字符串，而是根本不存在。国家只给一个 `country`，手填的
+优先。
 
 指标部分走白名单，所以 `boot_id`、`iface`、`net_rx_total`、`net_tx_total` 也只给登录后的面板。
 
 字段定义以 hub 的源码为准。写主题时按「这个 key 可能不存在」处理。
 
-## 三种要处理的状态 [链接到本节](https://monitor-document.pages.dev/dev/theme\#%E4%B8%89%E7%A7%8D%E8%A6%81%E5%A4%84%E7%90%86%E7%9A%84%E7%8A%B6%E6%80%81)
+## 三种要处理的状态
 
 | 状态 | 长什么样 |
-| --- | --- |
+|---|---|
 | 离线节点 | `metrics: null` |
-| 刚连上还没上报 | `online: true` \+ `metrics: null` |
+| 刚连上还没上报 | `online: true` + `metrics: null` |
 | 坏数据 | 字段缺失或类型不对 |
 
-第二种最容易漏。默认主题在渲染入口再检查一次完整指标，缺失或畸形时显示「不可用」，不让一个节点的坏数据把整个页面白屏。
+第二种最容易漏。默认主题在渲染入口再检查一次指标是否完整，缺失或格式不对时显示「不可用」，不让一个
+节点的坏数据导致整个页面白屏。
 
-## 路由 [链接到本节](https://monitor-document.pages.dev/dev/theme\#%E8%B7%AF%E7%94%B1)
+## 路由
 
-未知路径回落到主题自己的 `dist/index.html`，客户端路由因此可用。`/admin/*` 由 hub 内置后台接管，主题覆盖不了它。
+未知路径回落到主题自己的 `dist/index.html`，客户端路由因此可用。`/admin`、`/api`、`/install.sh`、
+`/agent/*` 由 hub 处理，主题覆盖不了。
 
-默认主题用 `/node/{id}` 做详情页。hub 的回落对它够用，但前面若有按路径做正向白名单的反代或
-WAF，要把这个前缀放行。从列表点进去只是 pushState，边缘看不见，刷新详情页才会真的请求这个路径，症状是「点进去正常，一刷新就被拦」。
+<Note warn>
+  默认主题用 `/node/{id}` 做详情页。前面有按路径放行的反代或 WAF 时，要把主题的路由前缀加进去：
+  从列表点进去只是前端路由切换，刷新详情页才会真正请求这个路径，症状是「点进去正常，一刷新就被拦」。
+  写主题时在 README 里列出自己的路由。
+</Note>
 
-## 本地开发 [链接到本节](https://monitor-document.pages.dev/dev/theme\#%E6%9C%AC%E5%9C%B0%E5%BC%80%E5%8F%91)
+## 本地开发
 
-起一个 hub 实例：
+主题只读公开数据，开发服务器可以直接拿一个现成的 hub 当数据源，只要它开着公开状态页（**设置**页的
+「开放公开状态页」）：
 
+```bash
+# 在主题目录里：Vite 把 /api 和 WebSocket 代理到这个 hub
+MONITOR_HUB=https://hub.example.com npm run dev
 ```
-monitor-hub --listen 127.0.0.1:9911 --db /tmp/monitor.db --site http://127.0.0.1:9911
+
+默认主题的 `vite.config.ts` 读的就是这个变量，自己写主题照抄即可；不设时代理到 `http://127.0.0.1:9911`。
+
+### 在本机起一个 hub
+
+手上没有 hub，或者想要一份能随便改的数据，就在本机起一个，自己添加节点：
+
+```bash
+# --site 只是为了让面板允许添加节点，任意一个 https 域名即可
+monitor-hub --listen 127.0.0.1:9911 --db /tmp/monitor.db \
+  --site https://hub.example.com
+
+# 另开一个终端，在主题目录里：不设 MONITOR_HUB，代理到 127.0.0.1:9911
+npm run dev
 ```
 
-bash
+打开 `http://127.0.0.1:9911/admin`，用 hub 启动时打印的应急密码登录，添加节点后点它的安装按钮。
+命令里的地址是上面的占位域名，用不了，只复制 `--token` 后面的值，在本机直接运行 agent：
 
-主题的开发服务器把 `/api` 和 WebSocket 代理到它。默认主题的 `vite.config.ts` 里就是这么配的，照抄即可。
+```bash
+# agent 连回环地址允许明文；二进制从 agent 仓库的 release 下载
+monitor-agent --server http://127.0.0.1:9911 --token <token>
+```
 
-## 安装与切换 [链接到本节](https://monitor-document.pages.dev/dev/theme\#%E5%AE%89%E8%A3%85%E4%B8%8E%E5%88%87%E6%8D%A2)
+agent 只有 Linux 版。在 macOS 上开发时节点会一直显示离线，要看实时数据，用上面代理到现成 hub 的方式。
 
-**主题** 页选一个即可切换，无需重启；选中的主题缺失或损坏时自动回落到内置默认主题。
+## 安装与切换
 
-装有两种方式：把 `theme.tar.gz` 拖进面板，或者把主题目录直接放到 hub 的 `--themes` 位置（一键脚本装出来的是 `/opt/monitor/data/themes/`）。卡片上的 ⟳ 从 `theme.json` 里 `url` 指的
-GitHub 仓库拉最新 release，tag 和已装版本相同就不下载。
+在**主题**页选一个即可切换，不用重启；选中的主题缺失或损坏时自动回落到内置默认主题。声明了
+[设置](#主题设置)的主题，卡片上多一个设置按钮，保存后公开页刷新即生效。设置存在 hub 的数据库里，
+更新、重装、删掉再装回主题都不会丢，数据库备份里也有。
 
-内置默认主题同样可以就地更新，无需升级 hub：⟳ 把新版装进 `themes/default/`，此后由磁盘上这份伺服，卡片上的「内置」标记随之消失，删掉它则回到二进制里那份。因此公开页有两层兜底——磁盘上的主题损坏时回落到内置默认主题，而内置的那份始终在二进制里，删不掉也换不坏。
+安装有两种方式：在面板上传 `theme.tar.gz`，或把主题目录直接放进 hub 的 `--themes` 目录（一键脚本部署是
+`/opt/monitor/data/themes/`）。卡片上的「从 GitHub 更新」从 `theme.json` 里 `url` 指向的 GitHub 仓库取
+最新 release，tag 与已装版本相同时不下载。
 
-上传的主题是在访客浏览器里运行的第三方代码，和 hub 同源。装之前的检查挡的是写到目录外和撑爆磁盘，不体检里面的 JS。只装信得过的来源。
+内置默认主题同样可以就地更新，不用升级 hub：更新会把新版装进 `themes/default/`，此后使用磁盘上的这份，
+卡片上的「内置」标记随之消失；删掉它就回到二进制里的那份。二进制里的默认主题删不掉也改不了，磁盘上的主题
+出问题时总能回落到它。
 
-## 参考实现 [链接到本节](https://monitor-document.pages.dev/dev/theme\#%E5%8F%82%E8%80%83%E5%AE%9E%E7%8E%B0)
+<Note warn>
+  上传的主题是在访客浏览器里运行的第三方代码，和 hub 同源。安装时的检查只防止写到目录外和占满磁盘，
+  不检查里面的 JS。只装信得过的来源。
+</Note>
+
+## 参考实现
 
 [monitor-theme-default](https://github.com/monitor-probe/monitor-theme-default)，React + Vite +
-shadcn/ui，黑白配色。它同时是内置默认主题和第三方主题的范本：hub 嵌进去的那个包，和解到
-`themes/` 的那个是同一个文件。
-
-[在 GitHub 上修改这一页](https://github.com/monitor-probe/monitor-document/edit/main/src/content/dev/theme.mdx) 最后更新 2026-09-19
+shadcn/ui，黑白配色。它既是内置默认主题，也是第三方主题的范本：hub 嵌入的和装进 `themes/` 的是同一个
+`theme.tar.gz`。

@@ -405,7 +405,7 @@ export default function App() {
       }
     }).catch(() => {})
     void loadDetail()
-  }, [loadMe])
+  }, [loadMe, setThemeId, setGrainPercent, setFrostedPercent])
 
   useEffect(() => {
     if (closed) void loadMe()
@@ -418,6 +418,7 @@ export default function App() {
   const sorted = [...(nodes ?? [])].sort((a, b) => a.sort - b.sort || a.id - b.id)
   const selected = sorted.find((n) => n.id === open)
   const site = me?.site_name || "Monitor"
+  const notice = typeof config?.notice === "string" ? config.notice.trim() : ""
 
   useEffect(() => {
     document.title = [selected?.name, site].filter(Boolean).join(" · ")
@@ -498,12 +499,12 @@ export default function App() {
 
       {/* Main body with unified container width */}
       <main className={cn(CONTAINER_CLASS, "flex-1 space-y-6 py-6 max-md:py-4")}>
-        {config?.notice && String(config.notice).trim() && (
+        {notice ? (
           <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground shadow-2xs">
             <span className="font-semibold text-primary shrink-0">公告</span>
-            <div className="min-w-0 flex-1 whitespace-pre-wrap">{String(config.notice).trim()}</div>
+            <div className="min-w-0 flex-1 whitespace-pre-wrap">{notice}</div>
           </div>
-        )}
+        ) : null}
 
         {error && (
           <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">

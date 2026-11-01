@@ -206,7 +206,7 @@ function SortableHead({
   return (
     <TableHead
       className={cn(
-        "group h-9 px-2 text-center text-xs font-medium text-muted-foreground transition-colors @max-3xl:px-0.5 @max-3xl:text-[10px]",
+        "group h-9 px-2 text-center text-xs font-medium text-muted-foreground transition-colors @max-3xl:px-1 @max-3xl:text-[10px]",
         COL[col],
         col === "name" && "text-left",
         field && "cursor-pointer select-none hover:text-foreground",
@@ -445,7 +445,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
               ))}
             </TableRow>
           </TableHeader>
-          <TableBody className="[&_td]:px-2 [&_td]:py-2 @max-3xl:[&_td]:px-0.5">
+          <TableBody className="[&_td]:px-2 [&_td]:py-2 @max-3xl:[&_td]:px-1 @max-3xl:[&_td:first-child]:pl-2 @max-3xl:[&_td:last-child]:pr-2">
             {filteredNodes.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={12} className="py-12 text-center text-sm text-muted-foreground">

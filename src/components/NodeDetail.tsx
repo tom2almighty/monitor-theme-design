@@ -50,9 +50,9 @@ const TIP = {
 
 function Panel({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border/80 bg-card p-4 shadow-xs">
+    <div className="min-w-0 rounded-lg border border-border/80 bg-card p-4 shadow-xs">
       <h4 className="mb-3 text-xs font-semibold text-foreground">{title}</h4>
-      <div className="h-64 w-full text-muted-foreground">{children}</div>
+      <div className="h-64 w-full min-w-0 text-muted-foreground">{children}</div>
     </div>
   )
 }
@@ -320,15 +320,15 @@ export function Latency({
   const drawn = (id: number) => `${despiked ? (smoothed ? "f" : "s") : smoothed ? "e" : "t"}${id}`
 
   return (
-    <section className={cn("space-y-3", frame)}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+    <section className={cn("min-w-0 space-y-3", frame)}>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
         {fixed === undefined && (
           <Segmented
             value={hours}
             onChange={setPicked}
             options={RANGES.map((r) => ({ value: r.hours, label: r.label }))}
             label="时间范围"
-            className="h-7"
+            className="scrollbar-none h-7 max-w-full overflow-x-auto max-sm:[&>button]:px-2"
           />
         )}
         <div className="ml-auto flex gap-1">
@@ -388,7 +388,7 @@ export function Latency({
       ) : (
         // Faded while the next window is in flight, so the reader knows the
         // chart is about to change and is not misled by the one still up.
-        <div className={cn("w-full text-muted-foreground transition-opacity", className, loading && "opacity-50")}>
+        <div className={cn("w-full min-w-0 text-muted-foreground transition-opacity", className, loading && "opacity-50")}>
           {shownProbes.length === 0 ? (
             <p className="py-8 text-center text-sm">没有选中任何探测</p>
           ) : (
@@ -540,10 +540,10 @@ export function NodeDetail({ node }: { node: Node }) {
   const label = (ts: unknown) => new Date(Number(ts)).toLocaleString("zh-CN")
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
         <Dot node={node} />
-        <h2 className="truncate text-lg font-bold tracking-tight text-foreground">{node.name}</h2>
+        <h2 className="min-w-0 truncate text-lg font-bold tracking-tight text-foreground">{node.name}</h2>
         <Flag code={node.country} className="text-sm" />
         <Badge variant={node.online ? "success" : deployed(node) ? "destructive" : "secondary"}>
           {node.online ? `在线 ${m ? uptime(m.uptime) : ""}` : deployed(node) ? `离线 ${away >= 60 ? uptime(away) : ""}` : "未接入"}
@@ -556,22 +556,24 @@ export function NodeDetail({ node }: { node: Node }) {
       </div>
 
       {node.remark && (
-        <p className="rounded-lg border border-border/80 bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{node.remark}</p>
+        <p className="min-w-0 rounded-lg border border-border/80 bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">{node.remark}</p>
       )}
 
       {/* What to draw on the left, over which window on the right. */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-4">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-4">
         <Segmented
           value={chart}
           onChange={setChart}
           options={charts.map((c) => ({ value: c.key, label: c.label }))}
           label="图表"
+          className="scrollbar-none max-w-full overflow-x-auto max-sm:[&>button]:px-2"
         />
         <Segmented
           value={hours}
           onChange={setHours}
           options={RANGES.map((r) => ({ value: r.hours, label: r.label }))}
           label="时间范围"
+          className="scrollbar-none max-w-full overflow-x-auto max-sm:[&>button]:px-2"
         />
       </div>
 
@@ -583,7 +585,7 @@ export function NodeDetail({ node }: { node: Node }) {
         <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有历史数据</p>
       ) : (
         // Faded while the next window is in flight, as the latency chart is.
-        <div className={cn("transition-opacity", loading && "opacity-50")}>
+        <div className={cn("min-w-0 transition-opacity", loading && "opacity-50")}>
           {chart === "cpu" ? (
             <Panel title="CPU 使用率">
               <ResponsiveContainer>

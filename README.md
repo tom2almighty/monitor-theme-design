@@ -10,6 +10,7 @@ Fork 自 [stqfdyr/monitor-theme-serverstatus](https://github.com/monitor-probe/m
 
 - **配色切换**：均含亮色/暗色模式。
 - **噪点与磨砂效果**：两个参数各支持 0%~100% 无级调节。
+- **监控页筛选**：上方按搜索、分组、地区、系统、在线状态筛选节点，下方查看图表，桌面端与移动端布局一致。
 
 ## 安装
 

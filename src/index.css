@@ -161,6 +161,13 @@
 /* Tabular figures keep live numbers from shifting as they update. */
 .tnum { font-variant-numeric: tabular-nums; }
 
+/* Filter rows scroll on narrow screens without a scrollbar taking a line of
+   height from the controls above the chart. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
 /* Zen Browser-style tactile grain overlay:
    High-detail 3-octave fractal noise with boosted micro-contrast and desaturation,
    blended with 'overlay' to emulate Zen Browser's tactile frosted-glass & fine paper texture. */

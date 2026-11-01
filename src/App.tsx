@@ -1,12 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sparkles, Sun, UserRound, type LucideIcon } from "lucide-react"
 
-import { NodePicker } from "@/components/NodePicker"
+import { MonitorPage } from "@/components/MonitorPage"
 import { ServerTable, ServerTableSkeleton } from "@/components/ServerTable"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { SEGMENT, Segmented } from "@/components/ui/segmented"
-import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
 import { Link, useNodeRoute } from "@/lib/route"
 import { THEMES } from "@/lib/themes"
@@ -18,10 +17,9 @@ import theme from "../theme.json"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
-// Split out because recharts is most of the bundle and the list draws no chart.
-// Warmed as soon as the app starts, so the first chart opened does not wait on it.
-const loadDetail = () => import("@/components/NodeDetail").then((m) => ({ default: m.NodeDetail }))
-const NodeDetail = lazy(loadDetail)
+// The chart module is most of the bundle and the list draws no chart. Warmed as
+// soon as the app starts, so the first monitor page opened does not wait on it.
+const loadDetail = () => import("@/components/NodeDetail")
 
 const DARK_MEDIA = matchMedia("(prefers-color-scheme: dark)")
 
@@ -454,11 +452,11 @@ export default function App() {
 
       {/* Standard full-width sticky navigation bar aligned with page measure */}
       <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
-        <div className={cn(CONTAINER_CLASS, "flex h-14 items-center justify-between gap-4")}>
-          <div className="flex items-center gap-6 max-sm:gap-3">
-            <Link href="/" className="flex min-w-0 items-center gap-2.5 font-semibold tracking-tight text-foreground transition-colors hover:opacity-90">
+        <div className={cn(CONTAINER_CLASS, "flex h-14 min-w-0 items-center justify-between gap-4 max-sm:gap-2")}>
+          <div className="flex min-w-0 items-center gap-6 max-sm:gap-3">
+            <Link href="/" className="flex min-w-0 shrink items-center gap-2.5 font-semibold tracking-tight text-foreground transition-colors hover:opacity-90">
               <img src="/favicon.svg" alt="" className="size-5 shrink-0" />
-              <span className="truncate text-base font-bold">{site}</span>
+              <span className="min-w-0 truncate text-base font-bold">{site}</span>
             </Link>
             <nav aria-label="页面" className={cn(SEGMENT.list, "shrink-0")}>
               <NavTab href="/" active={open === null} icon={House}>首页</NavTab>
@@ -498,7 +496,7 @@ export default function App() {
       </header>
 
       {/* Main body with unified container width */}
-      <main className={cn(CONTAINER_CLASS, "flex-1 space-y-6 py-6 max-md:py-4")}>
+      <main className={cn(CONTAINER_CLASS, "min-w-0 flex-1 space-y-6 py-6 max-md:py-4")}>
         {notice ? (
           <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground shadow-2xs">
             <span className="font-semibold text-primary shrink-0">公告</span>
@@ -521,14 +519,7 @@ export default function App() {
             <ServerTable nodes={sorted} />
           )
         ) : selected ? (
-          <Card className="grid gap-6 p-5 md:grid-cols-[220px_minmax(0,1fr)] max-md:gap-4 max-md:p-3">
-            <NodePicker nodes={sorted} selected={selected.id} />
-            <div className="min-w-0">
-              <Suspense fallback={<Skeleton className="h-96" />}>
-                <NodeDetail node={selected} />
-              </Suspense>
-            </div>
-          </Card>
+          <MonitorPage nodes={sorted} selected={selected} />
         ) : (
           <Card className="py-16 text-center text-sm text-muted-foreground">
             节点不存在或未公开。<Link href="/" className="font-medium text-foreground hover:underline">返回列表</Link>

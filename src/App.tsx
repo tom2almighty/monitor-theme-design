@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sparkles, Sun, UserRound, type LucideIcon } from "lucide-react"
 
-import { MonitorPage } from "@/components/MonitorPage"
 import { ServerTable, ServerTableSkeleton } from "@/components/ServerTable"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { SEGMENT, Segmented } from "@/components/ui/segmented"
+import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
 import { Link, useNodeRoute } from "@/lib/route"
 import { THEMES } from "@/lib/themes"
@@ -17,9 +17,12 @@ import theme from "../theme.json"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
-// The chart module is most of the bundle and the list draws no chart. Warmed as
-// soon as the app starts, so the first monitor page opened does not wait on it.
+// The chart module is most of the bundle and the list draws no chart. Fetched
+// when the monitor tab is hovered or focused, so the status page does not
+// download it while a reader may never open a chart.
 const loadDetail = () => import("@/components/NodeDetail")
+const loadMonitor = () => import("@/components/MonitorPage")
+const MonitorPage = lazy(() => loadMonitor().then((module) => ({ default: module.MonitorPage })))
 
 const DARK_MEDIA = matchMedia("(prefers-color-scheme: dark)")
 
@@ -355,12 +358,16 @@ function BackToTop() {
 /**
  * One page of the two, in the segmented shape the theme switch beside it wears.
  */
-function NavTab({ href, active, icon: Icon, children }: { href: string; active: boolean; icon: LucideIcon; children: string }) {
+function NavTab({
+  href, active, icon: Icon, prefetch, children,
+}: { href: string; active: boolean; icon: LucideIcon; prefetch?: () => void; children: string }) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       title={children}
+      onPointerEnter={prefetch}
+      onFocus={prefetch}
       className={cn(SEGMENT.item, "text-xs max-sm:px-2", active ? SEGMENT.on : SEGMENT.off)}
     >
       <Icon className="size-3.5" />
@@ -402,7 +409,6 @@ export default function App() {
         setFrostedPercent(cfg.frosted_percent)
       }
     }).catch(() => {})
-    void loadDetail()
   }, [loadMe, setThemeId, setGrainPercent, setFrostedPercent])
 
   useEffect(() => {
@@ -461,7 +467,17 @@ export default function App() {
             <nav aria-label="页面" className={cn(SEGMENT.list, "shrink-0")}>
               <NavTab href="/" active={open === null} icon={House}>首页</NavTab>
               {sorted.length > 0 && (
-                <NavTab href={`/node/${open ?? sorted[0].id}`} active={open !== null} icon={ChartLine}>监控</NavTab>
+                <NavTab
+                  href={`/node/${open ?? sorted[0].id}`}
+                  active={open !== null}
+                  icon={ChartLine}
+                  prefetch={() => {
+                    void loadMonitor()
+                    void loadDetail()
+                  }}
+                >
+                  监控
+                </NavTab>
               )}
             </nav>
           </div>
@@ -519,7 +535,9 @@ export default function App() {
             <ServerTable nodes={sorted} />
           )
         ) : selected ? (
-          <MonitorPage nodes={sorted} selected={selected} />
+          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+            <MonitorPage nodes={sorted} selected={selected} />
+          </Suspense>
         ) : (
           <Card className="py-16 text-center text-sm text-muted-foreground">
             节点不存在或未公开。<Link href="/" className="font-medium text-foreground hover:underline">返回列表</Link>

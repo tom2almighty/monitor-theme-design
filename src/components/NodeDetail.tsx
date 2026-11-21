@@ -514,7 +514,7 @@ export function NodeDetail({ node }: { node: Node }) {
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Dot node={node} className="size-2.5" />
             {node.country && <Flag code={node.country} className="text-base" />}
-            <h1 className="min-w-0 truncate text-xl font-semibold tracking-[-0.025em] text-foreground sm:text-2xl">
+            <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
               {node.name}
             </h1>
             <Badge variant={node.online ? "success" : deployed(node) ? "destructive" : "secondary"}>

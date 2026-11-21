@@ -46,7 +46,7 @@ function Line({ label, className, children }: { label: string; className?: strin
   return (
     <div className="flex min-w-0 items-baseline justify-between gap-3 text-xs leading-5">
       <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className={cn("tnum min-w-0 text-right font-medium text-foreground break-words", className)}>
+      <span className={cn("tnum min-w-0 text-right font-medium text-foreground wrap-break-word", className)}>
         {children}
       </span>
     </div>

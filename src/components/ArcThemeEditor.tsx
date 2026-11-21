@@ -27,7 +27,6 @@ import {
   rgbToHsb,
   wheelColor,
 } from "@/lib/arc-theme"
-import { THEMES } from "@/lib/themes"
 import { cn } from "@/lib/utils"
 
 export type AppearanceMode = "light" | "dark" | "system"
@@ -36,14 +35,10 @@ export interface ArcThemeEditorProps {
   mode: AppearanceMode
   dark: boolean
   onModeChange: (mode: AppearanceMode) => void
-  arcEnabled: boolean
-  onArcEnabledChange: (enabled: boolean) => void
   arcColors: string[]
   onArcColorsChange: (colors: string[]) => void
   arcIntensity: number
   onArcIntensityChange: (intensity: number) => void
-  themeId: string
-  onThemeChange: (id: string) => void
   grainPercent: number
   onGrainChange: (val: number) => void
   frostedPercent: number
@@ -59,10 +54,9 @@ export interface ArcThemeEditorProps {
 const PAD_REACH_RATIO = 0.43
 
 type PageId = "brand" | "brand-pairs" | "pastel" | "drab" | "greyscale"
-type PresetId = "claude" | "vercel" | "twitter" | "default"
 
 /**
- * Interactive 2D dotted color wheel pad modeled after native Arc Browser:
+ * Interactive 2D dotted color wheel pad modeled after Arc Browser:
  * supports 1 to 3 independently draggable color knobs, keyboard adjustment,
  * appearance switch, +/- color buttons, and random harmonious palette shuffle.
  */
@@ -196,7 +190,7 @@ function ArcColorPad({
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
       className={cn(
-        "relative aspect-square w-full select-none overflow-hidden rounded-xl border border-border/70 touch-none",
+        "relative aspect-square w-full select-none overflow-hidden rounded-xl border border-border touch-none",
         dragging !== null ? "cursor-grabbing" : "cursor-crosshair",
       )}
     >
@@ -221,7 +215,7 @@ function ArcColorPad({
           onChange={onModeChange}
           options={appearanceOptions}
           label={t("appearance.label")}
-          className="h-7 bg-background/70 backdrop-blur-md shadow-xs"
+          className="h-7 bg-popover/80 backdrop-blur-md shadow-xs"
         />
       </div>
 
@@ -264,7 +258,7 @@ function ArcColorPad({
       {/* Bottom color count & shuffle bar */}
       <div
         data-pad-control="true"
-        className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border/60 bg-background/75 p-1 shadow-xs backdrop-blur-md"
+        className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-popover/85 p-1 shadow-xs backdrop-blur-md"
       >
         <button
           type="button"
@@ -286,7 +280,7 @@ function ArcColorPad({
         >
           <Plus className="size-3.5" />
         </button>
-        <span className="mx-0.5 h-3.5 w-px bg-border/80" aria-hidden="true" />
+        <span className="mx-0.5 h-3.5 w-px bg-border" aria-hidden="true" />
         <button
           type="button"
           onClick={handleShuffle}
@@ -301,9 +295,7 @@ function ArcColorPad({
   )
 }
 
-/**
- * Arc's five preset swatch pages with left/right pagination.
- */
+/** Arc's five preset swatch pages with left/right pagination. */
 function ArcSwatchBar({
   colors,
   onSelect,
@@ -392,9 +384,7 @@ function ArcSwatchBar({
   )
 }
 
-/**
- * Arc's signature sinusoidal wave slider for background color intensity (0-100%).
- */
+/** Arc's sinusoidal wave slider for background color intensity (0-100%). */
 function ArcWaveSlider({
   value,
   onChange,
@@ -407,7 +397,6 @@ function ArcWaveSlider({
   const clipId = useId()
   const ratio = Math.min(1, Math.max(0, value / 100))
 
-  // Build 6-cycle sine wave matching Arc's growing amplitude curve.
   const wavePath = useMemo(() => {
     const w = 220
     const h = 36
@@ -493,7 +482,7 @@ function ArcWaveSlider({
           />
         </svg>
         <span
-          className="pointer-events-none absolute top-1/2 h-6 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border bg-background shadow-sm"
+          className="pointer-events-none absolute top-1/2 h-6 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border bg-card shadow-sm"
           style={{ left: `calc(8px + (100% - 16px) * ${ratio})` }}
           aria-hidden="true"
         />
@@ -502,9 +491,7 @@ function ArcWaveSlider({
   )
 }
 
-/**
- * Arc's 20-dot circular rotary dial for tactile film grain (0-100%).
- */
+/** Arc's 20-dot circular rotary dial for tactile film grain (0-100%). */
 function ArcGrainDial({
   value,
   onChange,
@@ -589,7 +576,7 @@ function ArcGrainDial({
             cx="25"
             cy="25"
             r="14.5"
-            fill="var(--background)"
+            fill="var(--card)"
             stroke="var(--border)"
             strokeWidth="1.2"
           />
@@ -609,22 +596,15 @@ function ArcGrainDial({
   )
 }
 
-/**
- * Theme studio popover combining native Arc background customization
- * with classic tweakcn presets and frosted canvas transparency controls.
- */
+/** Native Arc theme studio popover: wheel pad, preset swatches, wave intensity, grain dial, and canvas translucency. */
 export function ArcThemeEditor({
   mode,
   dark,
   onModeChange,
-  arcEnabled,
-  onArcEnabledChange,
   arcColors,
   onArcColorsChange,
   arcIntensity,
   onArcIntensityChange,
-  themeId,
-  onThemeChange,
   grainPercent,
   onGrainChange,
   frostedPercent,
@@ -640,14 +620,6 @@ export function ArcThemeEditor({
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-
-  const styleModeOptions = useMemo(
-    () => [
-      { value: "arc" as const, label: t("theme.modeArc") },
-      { value: "preset" as const, label: t("theme.modePreset") },
-    ],
-    [t],
-  )
 
   useEffect(() => {
     if (!open) return
@@ -682,11 +654,10 @@ export function ArcThemeEditor({
     }
   }
 
-  const previewSwatch = arcEnabled
-    ? arcColors.length > 1
+  const previewSwatch =
+    arcColors.length > 1
       ? `linear-gradient(135deg, ${arcColors[0]}, ${arcColors[arcColors.length - 1]})`
       : arcColors[0]
-    : THEMES.find((item) => item.id === themeId)?.accentColor ?? THEMES[0].accentColor
 
   const panelPosition =
     placement === "sidebar"
@@ -740,19 +711,19 @@ export function ArcThemeEditor({
           role="dialog"
           aria-label={t("theme.triggerLabel")}
           className={cn(
-            "absolute z-50 w-[min(21.5rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 p-3.5 text-popover-foreground shadow-xl backdrop-blur-xl space-y-3.5",
+            "absolute z-50 w-[min(21.5rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-border bg-popover/95 p-3.5 text-popover-foreground shadow-xl backdrop-blur-xl space-y-3.5",
             panelPosition,
           )}
         >
-          {/* Mode toggle: Arc dynamic theme vs classic tweakcn solid presets */}
           <div className="flex items-center justify-between gap-2">
-            <Segmented
-              value={arcEnabled ? "arc" : "preset"}
-              onChange={(v) => onArcEnabledChange(v === "arc")}
-              options={styleModeOptions}
-              label={t("theme.styleModeLabel")}
-              className="flex-1 [&>button]:flex-1"
-            />
+            <div className="flex items-center gap-2">
+              <span
+                className="size-3.5 shrink-0 rounded-full border border-foreground/15"
+                style={{ background: previewSwatch }}
+                aria-hidden="true"
+              />
+              <span className="text-xs font-semibold text-foreground">{t("theme.triggerLabel")}</span>
+            </div>
             {hasLocalOverrides && (
               <Button
                 variant="ghost"
@@ -760,88 +731,33 @@ export function ArcThemeEditor({
                 onClick={onResetDefaults}
                 aria-label={t("theme.resetDefaults")}
                 title={t("theme.resetDefaults")}
-                className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
+                className="size-7 shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 <RotateCcw className="size-3.5" />
               </Button>
             )}
           </div>
 
-          {arcEnabled ? (
-            <>
-              <ArcColorPad
-                colors={arcColors}
-                onChange={onArcColorsChange}
-                mode={mode}
-                dark={dark}
-                intensity={arcIntensity}
-                onModeChange={onModeChange}
-              />
+          <ArcColorPad
+            colors={arcColors}
+            onChange={onArcColorsChange}
+            mode={mode}
+            dark={dark}
+            intensity={arcIntensity}
+            onModeChange={onModeChange}
+          />
 
-              <ArcSwatchBar colors={arcColors} onSelect={onArcColorsChange} />
+          <ArcSwatchBar colors={arcColors} onSelect={onArcColorsChange} />
 
-              <div className="flex items-end gap-3 border-t border-border/60 pt-3">
-                <ArcWaveSlider value={arcIntensity} onChange={onArcIntensityChange} />
-                <ArcGrainDial value={grainPercent} onChange={onGrainChange} />
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
-                  <span className="text-xs font-semibold">{t("theme.classicTitle")}</span>
-                  <span className="text-xs text-muted-foreground">tweakcn</span>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-1.5">
-                  {THEMES.map((item) => {
-                    const active = themeId === item.id
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => onThemeChange(item.id)}
-                        className={cn(
-                          "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          active
-                            ? "border-primary bg-primary/10 font-semibold text-foreground shadow-2xs"
-                            : "border-border/60 text-muted-foreground hover:bg-muted hover:text-foreground",
-                        )}
-                        title={t(`theme.presets.${item.id as PresetId}`)}
-                      >
-                        <span
-                          className="size-3 shrink-0 rounded-full border border-foreground/15 shadow-xs"
-                          style={{ backgroundColor: item.accentColor }}
-                        />
-                        <span className="min-w-0 flex-1 truncate font-medium leading-tight">{item.name}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-1.5 border-t border-border/60 pt-2.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium">{t("theme.grain")}</span>
-                  <span className="tnum font-mono text-primary font-semibold">{grainPercent}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="1"
-                  aria-label={t("theme.grain")}
-                  value={grainPercent}
-                  onChange={(e) => onGrainChange(Number(e.target.value))}
-                  className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-            </>
-          )}
+          <div className="flex items-end gap-3 border-t border-border/70 pt-3">
+            <ArcWaveSlider value={arcIntensity} onChange={onArcIntensityChange} />
+            <ArcGrainDial value={grainPercent} onChange={onGrainChange} />
+          </div>
 
           {/* Stage frosted translucency control */}
-          <div className="space-y-1.5 border-t border-border/60 pt-2.5">
+          <div className="space-y-1.5 border-t border-border/70 pt-2.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-medium">{t("theme.stageFrosted")}</span>
+              <span className="font-medium text-foreground">{t("theme.stageFrosted")}</span>
               <span className="tnum font-mono text-muted-foreground">{frostedPercent}%</span>
             </div>
             <input
@@ -858,7 +774,7 @@ export function ArcThemeEditor({
 
           {/* Site admin save button */}
           {authed && (
-            <div className="border-t border-border/60 pt-2.5">
+            <div className="border-t border-border/70 pt-2.5">
               <Button
                 variant="outline"
                 size="sm"

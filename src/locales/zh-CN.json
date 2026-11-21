@@ -63,11 +63,8 @@
     "lastNodeTitle": "已经是最后一个节点"
   },
   "theme": {
-    "triggerLabel": "主题与背景设置",
+    "triggerLabel": "Arc 主题设置",
     "triggerText": "主题",
-    "styleModeLabel": "主题风格模式",
-    "modeArc": "Arc 背景",
-    "modePreset": "经典纯色",
     "resetDefaults": "恢复站点默认外观",
     "primaryKnob": "主色圆点",
     "secondaryKnob": "副色圆点 {{index}}",
@@ -76,7 +73,7 @@
     "addColor": "增加颜色",
     "addColorTitle": "增加颜色（最多 3 色）",
     "shuffle": "随机配色",
-    "shuffleTitle": "随机生成原生 Arc 配色",
+    "shuffleTitle": "随机生成 Arc 配色",
     "swatchTitle": "Arc 预设色板",
     "prevPage": "上一页预设颜色",
     "prevPageShort": "上一页预设",
@@ -94,38 +91,36 @@
     "grainShort": "颗粒 {{value}}%",
     "grainDialTitle": "旋转调节颗粒质感",
     "stageFrosted": "画布磨砂透光",
-    "classicTitle": "经典配色方案",
     "saveDefault": "保存为全站默认外观",
     "saving": "保存中…",
     "saved": "已设为全站默认",
-    "saveFailed": "保存失败",
-    "presets": {
-      "claude": "暖纸陶土 · 抗疲劳护眼",
-      "vercel": "极致极简 · 高对比黑白",
-      "twitter": "经典社交蓝 · 纯黑深色",
-      "default": "tweakcn 默认 · 中性极简"
-    }
+    "saveFailed": "保存失败"
   },
   "details": {
     "system": {
-      "title": "系统信息",
+      "title": "主机与系统",
       "os": "系统",
       "kernel": "内核",
       "arch": "架构",
-      "cpu": "CPU",
+      "cpu": "处理器",
       "cores": "{{count}} 核"
     },
     "resources": {
       "title": "资源监控",
+      "runtimeTitle": "容量与运行状态",
       "cpu": "CPU",
       "mem": "内存",
-      "swap": "交换",
+      "memTotal": "内存总量",
+      "swap": "交换分区",
       "swapOff": "未启用",
       "disk": "硬盘",
-      "load": "负载"
+      "diskTotal": "硬盘总量",
+      "load": "负载",
+      "connections": "连接 / 进程",
+      "connectionsValue": "{{tcp}} TCP · {{udp}} UDP · {{procs}} 进程"
     },
     "traffic": {
-      "title": "流量统计",
+      "title": "流量与计量",
       "since": "{{date}}起",
       "period": "本期",
       "today": "今日",
@@ -141,7 +136,7 @@
       }
     },
     "billing": {
-      "title": "账期信息",
+      "title": "账期与续费",
       "renew": "续费",
       "free": "免费",
       "expiry": "到期",
@@ -163,33 +158,36 @@
   },
   "overview": {
     "title": "集群运行总览",
-    "subtitle": "实时汇总各节点负载、带宽与流量消耗，点击图表条目进入详情",
+    "groupFilterLabel": "按分组筛选",
     "livePulse": "实时推送",
     "kpi": {
-      "fleetHealth": "在线状态",
+      "fleetHealth": "在线节点",
       "onlineRate": "在线率 {{rate}}%",
+      "reportingCount": "{{count}} 台正在上报",
       "avgCpu": "平均 CPU",
       "totalCores": "共 {{cores}} 核",
       "memory": "集群内存",
       "memPercent": "已用 {{pct}}%",
       "throughput": "实时总吞吐",
-      "periodTotal": "本期 {{total}}"
+      "periodTotal": "本期累计 {{total}}"
     },
     "charts": {
-      "resourceTitle": "节点实时资源负载",
-      "resourceDesc": "按实时综合负载排序（前 {{count}} 台在线节点），点击柱条直达详情",
-      "liveBandwidthTitle": "实时集群带宽趋势",
-      "liveBandwidthDesc": "随 WebSocket 快照持续记录近 {{seconds}} 秒全站下行与上行速率",
+      "resourceTitle": "节点实时负载",
+      "resourceDesc": "前 {{count}} 台高负载在线节点，点击柱条查看详情",
+      "modeBoth": "综合",
+      "clickToInspect": "点击查看详情",
+      "liveBandwidthTitle": "实时集群带宽",
+      "liveBandwidthDesc": "近 {{seconds}} 秒全站聚合下行与上行速率",
       "trafficTopTitle": "本期流量排行",
-      "trafficTopDesc": "按当前计费周期累计流量排序（前 {{count}} 台）",
-      "trafficUsed": "本期流量",
-      "regionTitle": "地区与在线分布",
-      "regionDesc": "按国家/地区统计节点规模与在线数",
+      "trafficTopDesc": "当前计费周期流量消耗前 {{count}} 台节点",
+      "regionTitle": "地区分布",
+      "regionDesc": "各国家/地区节点规模与在线数",
+      "regionsUnit": "个地区",
+      "otherRegions": "其他地区",
       "unknownRegion": "未知地区",
       "noOnlineNodes": "暂无在线上报节点",
       "noTrafficData": "暂无流量数据",
-      "collectingSamples": "正在采集实时快照…",
-      "nodesUnit": "{{count}} 台"
+      "collectingSamples": "正在采集实时快照…"
     }
   },
   "charts": {
@@ -201,9 +199,9 @@
     "probeFallback": "探测 {{id}}",
     "loss": "丢 {{loss}}%",
     "despike": "削峰",
-    "despikeTitle": "把孤立的异常值换成邻近若干桶的中位数，持续的变化保持原样",
+    "despikeTitle": "将孤立异常值替换为邻近窗口中位数，持续变化保持原样",
     "smooth": "平滑",
-    "smoothTitle": "指数加权移动平均（EWMA）：抹平逐桶的抖动，只看线路稳定在什么水平；单条探测时原始曲线淡淡地垫在下面",
+    "smoothTitle": "指数加权移动平均（EWMA）平滑抖动，单条探测时保留淡色原始曲线",
     "tabs": {
       "cpu": "CPU",
       "mem": "内存",
@@ -215,6 +213,7 @@
       "24": "24 小时",
       "168": "7 天"
     },
+    "avg": "均值 {{value}}",
     "cpuTitle": "CPU 使用率",
     "cpuPeak": "峰值 {{peak}}%",
     "memTitle": "内存占用",

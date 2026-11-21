@@ -1,10 +1,13 @@
-// Verification of the Arc color engine and token derivation. Run via `npm test`.
+// Verification of the Arc color engine, chart palette separation, and token contrast. Run via `npm test`.
 import {
   ARC_PRESET_PAGES,
   colorFromPad,
+  computeArcChartPalette,
   computeArcLook,
   computeArcTokens,
+  contrastRatio,
   DEFAULT_ARC_COLORS,
+  hexToOklch,
   hexToRgb,
   isDarkHex,
   knobPosition,
@@ -13,7 +16,6 @@ import {
   parseArcColors,
   presetPageOf,
   randomArcColors,
-  relativeLuminance,
   rgbToHsb,
   serializeArcColors,
   shadeHex,
@@ -42,7 +44,11 @@ function nearHex(a: string, b: string, tol: number): boolean {
   )
 }
 
-// Cra/Arc reference shade & palette anchors
+function hueGap(a: number, b: number): number {
+  return Math.abs((((a - b) % 360) + 540) % 360 - 180)
+}
+
+// Arc reference shade & palette anchors
 eq(nearHex(shadeHex("#8389FF", 0.9), "#C8CAFF", 6), true, "浅色抬升与 Arc 实测一致")
 eq(nearHex(shadeHex("#8389FF", 0.064), "#01021F", 3), true, "深色压暗与 Arc 实测一致")
 eq(nearHex(midToneHex("#6CBAD9"), "#6CBAD9", 2), true, "midTone 在 OKLab 区间内保持原色")
@@ -106,14 +112,29 @@ eq(Number(solidAlpha(1).toFixed(2)), 0.74, "强度 1 时的单色不透明度")
   eq(mesh.backgroundImage.includes("linear-gradient"), true, "三色背景含底层线性渐变")
 }
 
-// Semantic token contrast sanity across extreme colors (bright yellow, white, black)
-for (const sample of [["#F8D558"], ["#FFFFFF"], ["#000000"], ["#6CBAD9", "#7F7EDC"]]) {
+// Dynamic Arc chart palette: valid hex, hue separation, and contrast against card surface
+for (const sample of [["#F8D558"], ["#FFFFFF"], ["#000000"], ["#6CBAD9", "#7F7EDC"], ["#F25E6B", "#34E895", "#FF8558"]]) {
   for (const dark of [false, true]) {
-    const tokens = computeArcTokens(sample, 80, dark)
-    const lp = relativeLuminance(tokens.primary)
-    const lf = relativeLuminance(tokens["primary-foreground"])
-    const contrast = (Math.max(lp, lf) + 0.05) / (Math.min(lp, lf) + 0.05)
+    const tokens = computeArcTokens(sample, 75, dark)
+    const contrast = contrastRatio(tokens.primary, tokens["primary-foreground"])
     eq(contrast >= 4.5, true, `按钮前景 WCAG AA 对比度达标 (${sample.join(",")}, dark=${dark}, ratio=${contrast.toFixed(2)})`)
+
+    const chartColors = computeArcChartPalette(sample, dark)
+    eq(chartColors.every(validHex), true, `图表 5 色均为合法 Hex (${sample.join(",")}, dark=${dark})`)
+
+    const hues = chartColors.map((hex) => hexToOklch(hex).h)
+    let minGap = 360
+    for (let i = 0; i < hues.length; i++) {
+      for (let j = i + 1; j < hues.length; j++) {
+        minGap = Math.min(minGap, hueGap(hues[i], hues[j]))
+      }
+    }
+    eq(minGap >= 30, true, `图表 5 色色相分离 >= 30° (${sample.join(",")}, dark=${dark}, minGap=${minGap.toFixed(1)}°)`)
+
+    for (const c of chartColors) {
+      const cardContrast = contrastRatio(c, tokens.card)
+      eq(cardContrast >= 3.0, true, `图表色相对卡片对比度 >= 3.0 (${sample.join(",")}, dark=${dark}, color=${c}, ratio=${cardContrast.toFixed(2)})`)
+    }
   }
 }
 

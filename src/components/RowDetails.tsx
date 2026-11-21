@@ -3,10 +3,22 @@ import { useTranslation } from "react-i18next"
 
 import { Meter, OsIcon } from "@/components/NodeMarks"
 import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import type { Node } from "@/lib/api"
 import {
-  bytes, cpuName, daysUntil, dayUsage, FOREVER, money, monthUsage, osName, pair, percent, periodStart,
-  uptime, virtName,
+  bytes,
+  cpuName,
+  daysUntil,
+  dayUsage,
+  FOREVER,
+  money,
+  monthUsage,
+  osName,
+  pair,
+  percent,
+  periodStart,
+  uptime,
+  virtName,
 } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -16,46 +28,48 @@ type BillingCycleKey = "monthly" | "quarterly" | "semiannual" | "yearly" | "bien
 const TRAFFIC_MODE_KEYS = new Set<string>(["sum", "up", "down", "max"])
 const BILLING_CYCLE_KEYS = new Set<string>(["monthly", "quarterly", "semiannual", "yearly", "biennial", "triennial", "once"])
 
-/**
- * One topic per card.
- */
+/** Arc-surface specification card that syncs with stage frosted translucency. */
 function Block({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <section className="min-w-0 rounded-lg border border-border/80 bg-card p-3.5 shadow-xs">
-      <h4 className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-foreground">
-        <span>{title}</span>
+    <Card className="min-w-0 gap-2.5 p-4">
+      <h4 className="flex items-center justify-between gap-2 text-xs font-semibold text-foreground">
+        <span className="truncate">{title}</span>
         {aside}
       </h4>
-      <div className="space-y-1">{children}</div>
-    </section>
+      <div className="space-y-1.5">{children}</div>
+    </Card>
   )
 }
 
-/** One fact per line, the label in a fixed column so the values align. */
+/** Key-value specification row with adaptive label width for both Chinese and English copy. */
 function Line({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <div className="grid min-w-0 grid-cols-[4.2rem_minmax(0,1fr)] items-baseline gap-x-2 text-xs leading-5">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={cn("tnum break-words font-medium text-foreground", className)}>{children}</span>
+    <div className="flex min-w-0 items-baseline justify-between gap-3 text-xs leading-5">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className={cn("tnum min-w-0 text-right font-medium text-foreground break-words", className)}>
+        {children}
+      </span>
     </div>
   )
 }
 
-/**
- * This period's usage against the plan's quota, with today's share lifted a
- * shade at the tip.
- */
+/** Period usage meter against plan quota, with today's slice lifted at the tip. */
 function PeriodMeter({ used, today, limit, title }: { used: number; today: number; limit: number; title: string }) {
   const pct = percent(used, limit)
   const share = pct > 0 ? (percent(Math.min(today, used), limit) / pct) * 100 : 0
   return (
-    <Meter pct={pct} title={title} className="my-1.5 h-2">
-      {today > 0 && <div className="absolute inset-y-0 right-0 min-w-0.5 rounded-r-full bg-background/45" style={{ width: `${share}%` }} />}
+    <Meter pct={pct} color="var(--color-chart-1)" title={title} className="my-1.5 h-2">
+      {today > 0 && (
+        <div
+          className="absolute inset-y-0 right-0 min-w-0.5 rounded-r-full bg-card/55"
+          style={{ width: `${share}%` }}
+        />
+      )}
     </Meter>
   )
 }
 
-/** The four cards: the machine, what it is doing, what it has moved, and its term. */
+/** Four structured specification panels: Host, Capacity & Runtime, Traffic, and Billing. */
 export function NodeOverview({ node }: { node: Node }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.resolvedLanguage ?? i18n.language
@@ -81,26 +95,19 @@ export function NodeOverview({ node }: { node: Node }) {
   ].filter(Boolean)
 
   return (
-    <div className="grid gap-3 @min-[30rem]:grid-cols-2 @6xl:grid-cols-4">
+    <div className="grid gap-3.5 @min-[34rem]:grid-cols-2 @6xl:grid-cols-4">
       <Block
         title={t("details.system.title")}
         aside={
-          <div className="flex items-center gap-1.5">
-            {node.group && (
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-normal">
-                {node.group}
-              </Badge>
-            )}
-            {node.agent_version && (
-              <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal text-muted-foreground">
-                v{node.agent_version}
-              </Badge>
-            )}
-          </div>
+          node.agent_version ? (
+            <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px] font-normal text-muted-foreground">
+              v{node.agent_version}
+            </Badge>
+          ) : undefined
         }
       >
         <Line label={t("details.system.os")}>
-          <span className="inline-flex max-w-full items-center gap-1.5 align-middle">
+          <span className="inline-flex max-w-full items-center justify-end gap-1.5 align-middle">
             <OsIcon os={node.os} />
             <span className="min-w-0 truncate">{osName(node.os) || "—"}</span>
           </span>
@@ -121,24 +128,28 @@ export function NodeOverview({ node }: { node: Node }) {
         </Line>
       </Block>
 
-      <Block title={t("details.resources.title")}>
-        {m && <Line label={t("details.resources.cpu")}>{m.cpu.toFixed(1)}%</Line>}
-        <Line label={t("details.resources.mem")}>{m ? usage(m.mem_used, m.mem_total) : bytes(node.mem_total)}</Line>
+      <Block title={t("details.resources.runtimeTitle")}>
+        <Line label={t("details.resources.memTotal")}>{bytes(node.mem_total)}</Line>
         <Line label={t("details.resources.swap")}>
           {node.swap_total > 0 ? (m ? usage(m.swap_used, m.swap_total) : bytes(node.swap_total)) : t("details.resources.swapOff")}
         </Line>
-        <Line label={t("details.resources.disk")}>{m ? usage(m.disk_used, m.disk_total) : bytes(node.disk_total)}</Line>
+        <Line label={t("details.resources.diskTotal")}>{bytes(node.disk_total)}</Line>
         {m && <Line label={t("details.resources.load")}>{m.load.map((n) => n.toFixed(2)).join(" / ")}</Line>}
+        {m && (
+          <Line label={t("details.resources.connections")}>
+            {t("details.resources.connectionsValue", { tcp: m.tcp, udp: m.udp, procs: m.procs })}
+          </Line>
+        )}
       </Block>
 
       <Block
         title={t("details.traffic.title")}
         aside={
-          since && (
-            <span className="tnum text-[11px] text-muted-foreground">
+          since ? (
+            <span className="tnum shrink-0 text-[11px] text-muted-foreground">
               {t("details.traffic.since", { date: since })}
             </span>
-          )
+          ) : undefined
         }
       >
         <Line label={t("details.traffic.period")}>{limit > 0 ? usage(used, limit) : `${bytes(used)} / ${FOREVER}`}</Line>

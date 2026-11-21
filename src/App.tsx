@@ -31,7 +31,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
 import {
   clampPercent,
-  classicShellTokens,
   computeArcLook,
   computeArcTokens,
   DEFAULT_ARC_COLORS,
@@ -43,35 +42,23 @@ import { fields, loadConfig, saveConfig } from "@/lib/config"
 import { toggleLocale } from "@/lib/i18n"
 import { usePref } from "@/lib/prefs"
 import { Link, navigate, useNodeRoute } from "@/lib/route"
-import { THEMES } from "@/lib/themes"
 import { cn } from "@/lib/utils"
-// The name, author and repository the footer credits, read from the manifest
-// the panel reads, so the two never disagree.
 import theme from "../theme.json"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
-// The chart module is most of the bundle and the list draws no chart. Fetched
-// when a node link is hovered or focused, so the overview stays light.
 const loadDetail = () => import("@/components/NodeDetail")
 const loadMonitor = () => import("@/components/MonitorPage")
 const MonitorPage = lazy(() => loadMonitor().then((module) => ({ default: module.MonitorPage })))
 
 const DARK_MEDIA = matchMedia("(prefers-color-scheme: dark)")
 
-/**
- * What the key says, read as the pre-paint script in index.html reads it: one of
- * the two names is a choice, anything else is none.
- */
 const savedMode = (): AppearanceMode => {
   const saved = localStorage.getItem("theme")
   return saved === "dark" || saved === "light" ? saved : "system"
 }
 
-/**
- * The visitor's own choice, or the system's while there is none. Shares the
- * `theme` key with `/admin/` on the same origin.
- */
+/** Shares the `theme` localStorage key with `/admin/` on the same origin. */
 function useTheme() {
   const [mode, setMode] = useState(savedMode)
   const system = useSyncExternalStore(
@@ -107,28 +94,22 @@ function useTheme() {
 }
 
 interface AppearanceValues {
-  arcEnabled: boolean
   arcColors: string[]
   arcIntensity: number
-  themeId: string
   grainPercent: number
   frostedPercent: number
 }
 
 interface VisitorAppearanceOverrides {
-  arcEnabled?: boolean
   arcColors?: string[]
   arcIntensity?: number
-  themeId?: string
   grainPercent?: number
   frostedPercent?: number
 }
 
 const STORAGE_KEYS = {
-  arcEnabled: "theme-arc-enabled",
   arcColors: "theme-arc-colors",
   arcIntensity: "theme-arc-intensity",
-  themeId: "theme-preset",
   grainPercent: "theme-grain-percent",
   frostedPercent: "theme-frosted-percent",
 } as const
@@ -138,13 +119,9 @@ function manifestDefault(key: string): unknown {
 }
 
 function readManifestDefaults(): AppearanceValues {
-  const rawPreset = manifestDefault("theme_preset")
-  const themeId = typeof rawPreset === "string" && THEMES.some((t) => t.id === rawPreset) ? rawPreset : "claude"
   return {
-    arcEnabled: manifestDefault("arc_enabled") !== false,
     arcColors: parseArcColors(manifestDefault("arc_colors"), DEFAULT_ARC_COLORS),
     arcIntensity: clampPercent(Number(manifestDefault("arc_intensity")), DEFAULT_ARC_INTENSITY),
-    themeId,
     grainPercent: clampPercent(Number(manifestDefault("grain_percent")), 18),
     frostedPercent: clampPercent(Number(manifestDefault("frosted_percent")), 0),
   }
@@ -153,10 +130,6 @@ function readManifestDefaults(): AppearanceValues {
 function readVisitorOverrides(): VisitorAppearanceOverrides {
   const out: VisitorAppearanceOverrides = {}
   try {
-    const arcEnabled = localStorage.getItem(STORAGE_KEYS.arcEnabled)
-    if (arcEnabled === "true") out.arcEnabled = true
-    else if (arcEnabled === "false") out.arcEnabled = false
-
     const arcColors = localStorage.getItem(STORAGE_KEYS.arcColors)
     if (arcColors !== null) out.arcColors = parseArcColors(arcColors, DEFAULT_ARC_COLORS)
 
@@ -166,18 +139,10 @@ function readVisitorOverrides(): VisitorAppearanceOverrides {
       if (Number.isFinite(n) && n >= 0 && n <= 100) out.arcIntensity = Math.round(n)
     }
 
-    const preset = localStorage.getItem(STORAGE_KEYS.themeId)
-    if (preset && THEMES.some((t) => t.id === preset)) out.themeId = preset
-
     const grain = localStorage.getItem(STORAGE_KEYS.grainPercent)
     if (grain !== null) {
       const n = Number(grain)
       if (Number.isFinite(n) && n >= 0 && n <= 100) out.grainPercent = Math.round(n)
-    } else {
-      const legacy = localStorage.getItem("theme-grain")
-      if (legacy === "off") out.grainPercent = 0
-      else if (legacy === "subtle") out.grainPercent = 10
-      else if (legacy === "film") out.grainPercent = 35
     }
 
     const frosted = localStorage.getItem(STORAGE_KEYS.frostedPercent)
@@ -204,7 +169,6 @@ function clearVisitorStorage() {
     for (const key of Object.values(STORAGE_KEYS)) {
       localStorage.removeItem(key)
     }
-    localStorage.removeItem("theme-grain")
   } catch {
     // Ignore storage errors.
   }
@@ -219,37 +183,28 @@ function useAppearanceSettings(dark: boolean) {
   const [overrides, setOverrides] = useState<VisitorAppearanceOverrides>(readVisitorOverrides)
 
   const effective = useMemo<AppearanceValues>(() => ({
-    arcEnabled: overrides.arcEnabled ?? siteDefaults.arcEnabled,
     arcColors: overrides.arcColors ?? siteDefaults.arcColors,
     arcIntensity: overrides.arcIntensity ?? siteDefaults.arcIntensity,
-    themeId: overrides.themeId ?? siteDefaults.themeId,
     grainPercent: overrides.grainPercent ?? siteDefaults.grainPercent,
     frostedPercent: overrides.frostedPercent ?? siteDefaults.frostedPercent,
   }), [overrides, siteDefaults])
 
-  const activePreset = useMemo(
-    () => THEMES.find((t) => t.id === effective.themeId) ?? THEMES[0],
-    [effective.themeId],
-  )
-
   const arcLook = useMemo(
-    () => (effective.arcEnabled ? computeArcLook(effective.arcColors, effective.arcIntensity, dark) : null),
-    [effective.arcEnabled, effective.arcColors, effective.arcIntensity, dark],
+    () => computeArcLook(effective.arcColors, effective.arcIntensity, dark),
+    [effective.arcColors, effective.arcIntensity, dark],
   )
 
   useLayoutEffect(() => {
-    const vars = effective.arcEnabled
-      ? computeArcTokens(effective.arcColors, effective.arcIntensity, dark)
-      : classicShellTokens(dark ? activePreset.dark : activePreset.light, dark)
+    const vars = computeArcTokens(effective.arcColors, effective.arcIntensity, dark)
     const root = document.documentElement
     for (const [key, val] of Object.entries(vars)) {
       root.style.setProperty(`--${key}`, String(val))
     }
-  }, [effective.arcEnabled, effective.arcColors, effective.arcIntensity, activePreset, dark])
+  }, [effective.arcColors, effective.arcIntensity, dark])
 
   useLayoutEffect(() => {
     const stageAlpha = Math.max(0.24, 1 - (effective.frostedPercent * 0.76) / 100)
-    const cardAlpha = Math.max(0.45, 1 - (effective.frostedPercent * 0.55) / 100)
+    const cardAlpha = Math.max(0.42, 1 - (effective.frostedPercent * 0.58) / 100)
     const root = document.documentElement
     root.style.setProperty("--stage-opacity", String(stageAlpha))
     root.style.setProperty("--card-opacity", String(cardAlpha))
@@ -257,18 +212,11 @@ function useAppearanceSettings(dark: boolean) {
 
   const applyHubConfig = useCallback((cfg: Record<string, unknown>) => {
     setSiteDefaults((prev) => ({
-      arcEnabled: typeof cfg.arc_enabled === "boolean" ? cfg.arc_enabled : prev.arcEnabled,
       arcColors: typeof cfg.arc_colors === "string" ? parseArcColors(cfg.arc_colors, prev.arcColors) : prev.arcColors,
       arcIntensity: typeof cfg.arc_intensity === "number" ? clampPercent(cfg.arc_intensity, prev.arcIntensity) : prev.arcIntensity,
-      themeId: typeof cfg.theme_preset === "string" && THEMES.some((t) => t.id === cfg.theme_preset) ? cfg.theme_preset : prev.themeId,
       grainPercent: typeof cfg.grain_percent === "number" ? clampPercent(cfg.grain_percent, prev.grainPercent) : prev.grainPercent,
       frostedPercent: typeof cfg.frosted_percent === "number" ? clampPercent(cfg.frosted_percent, prev.frostedPercent) : prev.frostedPercent,
     }))
-  }, [])
-
-  const setArcEnabled = useCallback((next: boolean) => {
-    writeStorage(STORAGE_KEYS.arcEnabled, String(next))
-    setOverrides((prev) => ({ ...prev, arcEnabled: next }))
   }, [])
 
   const setArcColors = useCallback((next: string[]) => {
@@ -281,12 +229,6 @@ function useAppearanceSettings(dark: boolean) {
     const clamped = clampPercent(next, DEFAULT_ARC_INTENSITY)
     writeStorage(STORAGE_KEYS.arcIntensity, String(clamped))
     setOverrides((prev) => ({ ...prev, arcIntensity: clamped }))
-  }, [])
-
-  const setThemeId = useCallback((next: string) => {
-    if (!THEMES.some((t) => t.id === next)) return
-    writeStorage(STORAGE_KEYS.themeId, next)
-    setOverrides((prev) => ({ ...prev, themeId: next }))
   }, [])
 
   const setGrainPercent = useCallback((next: number) => {
@@ -308,10 +250,8 @@ function useAppearanceSettings(dark: boolean) {
 
   const saveAsSiteDefault = useCallback(async () => {
     await saveConfig({
-      arc_enabled: effective.arcEnabled,
       arc_colors: serializeArcColors(effective.arcColors),
       arc_intensity: effective.arcIntensity,
-      theme_preset: effective.themeId,
       grain_percent: effective.grainPercent,
       frosted_percent: effective.frostedPercent,
     })
@@ -327,10 +267,8 @@ function useAppearanceSettings(dark: boolean) {
     arcLook,
     hasLocalOverrides,
     applyHubConfig,
-    setArcEnabled,
     setArcColors,
     setArcIntensity,
-    setThemeId,
     setGrainPercent,
     setFrostedPercent,
     resetToSiteDefaults,
@@ -362,7 +300,7 @@ function BackToTop({ containerRef }: { containerRef: React.RefObject<HTMLDivElem
     <Button
       variant="outline"
       size="icon"
-      className="fixed right-6 bottom-6 z-30 rounded-full bg-popover/90 shadow-md backdrop-blur-md max-md:right-4 max-md:bottom-4"
+      className="fixed right-6 bottom-6 z-30 rounded-full bg-popover/90 shadow-md backdrop-blur-md max-md:right-4 max-md:bottom-4 cursor-pointer"
       title={t("common.backToTop")}
       aria-label={t("common.backToTop")}
       onClick={() => {
@@ -383,10 +321,8 @@ export default function App() {
     arcLook,
     hasLocalOverrides,
     applyHubConfig,
-    setArcEnabled,
     setArcColors,
     setArcIntensity,
-    setThemeId,
     setGrainPercent,
     setFrostedPercent,
     resetToSiteDefaults,
@@ -442,7 +378,6 @@ export default function App() {
     return () => removeEventListener("keydown", onKey)
   }, [sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen])
 
-  // Scroll the right stage back to top when switching servers.
   useEffect(() => {
     stageRef.current?.scrollTo({ top: 0 })
   }, [open])
@@ -483,14 +418,10 @@ export default function App() {
     mode,
     dark,
     onModeChange: choose,
-    arcEnabled: effective.arcEnabled,
-    onArcEnabledChange: setArcEnabled,
     arcColors: effective.arcColors,
     onArcColorsChange: setArcColors,
     arcIntensity: effective.arcIntensity,
     onArcIntensityChange: setArcIntensity,
-    themeId: effective.themeId,
-    onThemeChange: setThemeId,
     grainPercent: effective.grainPercent,
     onGrainChange: setGrainPercent,
     frostedPercent: effective.frostedPercent,
@@ -504,19 +435,16 @@ export default function App() {
   return (
     <div className="relative min-h-dvh bg-background lg:h-dvh lg:overflow-hidden">
       {/* Native Arc multi-point gradient shell canvas */}
-      {arcLook && (
-        <div
-          className="pointer-events-none fixed inset-0 z-0 transition-[background-color] duration-300 motion-reduce:transition-none"
-          style={{
-            backgroundColor: arcLook.backgroundColor,
-            backgroundImage: arcLook.backgroundImage,
-          }}
-          aria-hidden="true"
-        />
-      )}
+      <div
+        className="pointer-events-none fixed inset-0 z-0 transition-[background-color] duration-300 motion-reduce:transition-none"
+        style={{
+          backgroundColor: arcLook.backgroundColor,
+          backgroundImage: arcLook.backgroundImage,
+        }}
+        aria-hidden="true"
+      />
 
-      {/* Arc-style tactile film grain overlay on the gradient chrome only:
-          it sits under the shell so the right paper stage stays clean. */}
+      {/* Film grain overlay on the outer gradient chrome only */}
       {effective.grainPercent > 0 && (
         <div
           className={cn(
@@ -561,11 +489,7 @@ export default function App() {
               role="dialog"
               aria-label={t("sidebar.title")}
               className="relative z-10 flex h-full w-[min(18rem,84vw)] flex-col overflow-hidden border-r border-(--arc-chrome-border) bg-background shadow-2xl"
-              style={
-                arcLook
-                  ? { backgroundColor: arcLook.backgroundColor, backgroundImage: arcLook.backgroundImage }
-                  : undefined
-              }
+              style={{ backgroundColor: arcLook.backgroundColor, backgroundImage: arcLook.backgroundImage }}
             >
               <ArcSidebar
                 site={site}
@@ -584,28 +508,26 @@ export default function App() {
           </div>
         )}
 
-        {/* Right floating Arc Stage Paper Card */}
+        {/* Right floating Arc Stage */}
         <div
           ref={stageRef}
           data-slot="arc-stage"
           className={cn(
-            "relative flex min-h-[calc(100dvh-1rem)] min-w-0 flex-1 flex-col rounded-2xl border border-border/70 text-foreground shadow-lg lg:h-full lg:min-h-0 lg:overflow-y-auto",
+            "relative flex min-h-[calc(100dvh-1rem)] min-w-0 flex-1 flex-col rounded-2xl border border-border text-foreground shadow-lg lg:h-full lg:min-h-0 lg:overflow-y-auto",
             effective.frostedPercent > 0 && "backdrop-blur-md",
           )}
           style={{
             backgroundColor: "color-mix(in oklch, var(--stage) calc(var(--stage-opacity, 1) * 100%), transparent)",
           }}
         >
-          {/* Slim sticky Stage Top Bar: shares the stage surface so the bar and
-              the content below it read as one sheet. */}
+          {/* Slim sticky Stage Top Bar */}
           <header
-            className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-2 rounded-t-2xl border-b border-border/50 px-3 backdrop-blur-md sm:px-5"
+            className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-2 rounded-t-2xl border-b border-border/70 px-3 backdrop-blur-md sm:px-5"
             style={{
-              backgroundColor: "color-mix(in oklch, var(--stage) calc(var(--stage-opacity, 1) * 100%), transparent)",
+              backgroundColor: "color-mix(in oklch, var(--stage) calc(var(--stage-opacity, 1) * 92%), transparent)",
             }}
           >
             <div className="flex min-w-0 items-center gap-2">
-              {/* Mobile drawer button */}
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -617,7 +539,6 @@ export default function App() {
                 <Menu className="size-4" />
               </Button>
 
-              {/* Desktop expand button when sidebar is collapsed */}
               {sidebarCollapsed && (
                 <Button
                   variant="ghost"
@@ -631,14 +552,14 @@ export default function App() {
                 </Button>
               )}
 
-              {/* Breadcrumb / active context */}
               {open === null ? (
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-sm font-semibold">{site}</span>
-                  <span className="hidden text-muted-foreground sm:inline">/</span>
-                  <span className="hidden text-xs text-muted-foreground sm:inline">{t("sidebar.overview")}</span>
+                  <span className="hidden text-muted-foreground/60 sm:inline">/</span>
+                  <span className="hidden text-xs font-medium text-muted-foreground sm:inline">{t("overview.title")}</span>
                   {nodes && (
-                    <span className="tnum inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    <span className="tnum inline-flex shrink-0 items-center gap-1.5 rounded-full bg-secondary/90 px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
+                      <span className={cn("size-1.5 rounded-full", onlineCount === sorted.length ? "bg-success" : "bg-warning")} />
                       {t("status.onlineSummary", { online: onlineCount, total: sorted.length })}
                     </span>
                   )}
@@ -676,7 +597,6 @@ export default function App() {
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              {/* Prev / Next node buttons on detail view */}
               {selected && (
                 <div className="flex items-center gap-1">
                   <Button
@@ -686,7 +606,7 @@ export default function App() {
                     aria-label={t("sidebar.prevNode")}
                     title={previousNode ? t("sidebar.prevNodeTitle", { name: previousNode.name }) : t("sidebar.firstNodeTitle")}
                     onClick={() => previousNode && navigate(`/node/${previousNode.id}`)}
-                    className="cursor-pointer"
+                    className="bg-card/80 cursor-pointer"
                   >
                     <ChevronLeft className="size-4" />
                   </Button>
@@ -697,14 +617,13 @@ export default function App() {
                     aria-label={t("sidebar.nextNode")}
                     title={nextNode ? t("sidebar.nextNodeTitle", { name: nextNode.name }) : t("sidebar.lastNodeTitle")}
                     onClick={() => nextNode && navigate(`/node/${nextNode.id}`)}
-                    className="cursor-pointer"
+                    className="bg-card/80 cursor-pointer"
                   >
                     <ChevronRight className="size-4" />
                   </Button>
                 </div>
               )}
 
-              {/* Quick language, theme & admin actions on mobile or when desktop sidebar is collapsed */}
               <div className={cn("flex items-center gap-1", !sidebarCollapsed && "lg:hidden")}>
                 <Button
                   variant="ghost"
@@ -732,14 +651,14 @@ export default function App() {
           {/* Main stage content */}
           <main className="mx-auto w-full max-w-6xl min-w-0 flex-1 space-y-5 px-3.5 py-4 sm:px-6 sm:py-5">
             {notice ? (
-              <div className="flex items-start gap-2.5 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-foreground">
+              <div className="flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/6 px-4 py-3 text-sm text-foreground">
                 <span className="shrink-0 font-semibold text-primary">{t("common.notice")}</span>
                 <div className="min-w-0 flex-1 whitespace-pre-wrap">{notice}</div>
               </div>
             ) : null}
 
             {error && (
-              <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/8 px-4 py-3 text-sm text-destructive">
                 {error}
               </p>
             )}
@@ -767,7 +686,7 @@ export default function App() {
           </main>
 
           {/* Compact footer inside stage bottom */}
-          <footer className="mt-auto border-t border-border/50 px-4 py-4 sm:px-6">
+          <footer className="mt-auto border-t border-border/70 px-4 py-4 sm:px-6">
             <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
               <span>
                 {site} · {t("common.poweredBy")}{" "}

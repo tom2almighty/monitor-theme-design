@@ -63,11 +63,8 @@
     "lastNodeTitle": "Already at the last server"
   },
   "theme": {
-    "triggerLabel": "Theme & backdrop settings",
+    "triggerLabel": "Arc Theme Studio",
     "triggerText": "Theme",
-    "styleModeLabel": "Theme style mode",
-    "modeArc": "Arc Theme",
-    "modePreset": "Classic",
     "resetDefaults": "Reset to site default",
     "primaryKnob": "Primary color handle",
     "secondaryKnob": "Secondary color handle {{index}}",
@@ -76,8 +73,8 @@
     "addColor": "Add color",
     "addColorTitle": "Add color (up to 3)",
     "shuffle": "Randomize colors",
-    "shuffleTitle": "Generate a random native Arc palette",
-    "swatchTitle": "Arc Presets",
+    "shuffleTitle": "Generate a random Arc palette",
+    "swatchTitle": "Arc Swatches",
     "prevPage": "Previous preset page",
     "prevPageShort": "Previous page",
     "nextPage": "Next preset page",
@@ -94,21 +91,14 @@
     "grainShort": "Grain {{value}}%",
     "grainDialTitle": "Drag around to adjust film grain",
     "stageFrosted": "Canvas Frosted Glass",
-    "classicTitle": "Classic Presets",
     "saveDefault": "Save as site default",
     "saving": "Saving…",
     "saved": "Saved as site default",
-    "saveFailed": "Save failed",
-    "presets": {
-      "claude": "Warm parchment & terracotta",
-      "vercel": "Minimal high-contrast monochrome",
-      "twitter": "Classic blue & pitch dark",
-      "default": "tweakcn neutral default"
-    }
+    "saveFailed": "Save failed"
   },
   "details": {
     "system": {
-      "title": "System",
+      "title": "Host & System",
       "os": "OS",
       "kernel": "Kernel",
       "arch": "Arch",
@@ -117,15 +107,20 @@
     },
     "resources": {
       "title": "Resources",
+      "runtimeTitle": "Capacity & Runtime",
       "cpu": "CPU",
       "mem": "Memory",
+      "memTotal": "Total RAM",
       "swap": "Swap",
       "swapOff": "Disabled",
       "disk": "Disk",
-      "load": "Load"
+      "diskTotal": "Total Disk",
+      "load": "Load",
+      "connections": "Sockets / Procs",
+      "connectionsValue": "{{tcp}} TCP · {{udp}} UDP · {{procs}} procs"
     },
     "traffic": {
-      "title": "Traffic",
+      "title": "Traffic & Policy",
       "since": "Since {{date}}",
       "period": "Period",
       "today": "Today",
@@ -141,12 +136,12 @@
       }
     },
     "billing": {
-      "title": "Billing",
+      "title": "Billing & Term",
       "renew": "Price",
       "free": "Free",
       "expiry": "Expires",
       "permanent": "No expiry",
-      "remaining": "Left",
+      "remaining": "Remaining",
       "expiredDays": "Expired {{days}}d ago",
       "remainingDays": "{{days}}d left",
       "days": "{{days}}d",
@@ -163,11 +158,12 @@
   },
   "overview": {
     "title": "Fleet Telemetry",
-    "subtitle": "Live cluster health, resource pressure, and bandwidth across your nodes. Click any bar to inspect.",
+    "groupFilterLabel": "Filter by group",
     "livePulse": "Live",
     "kpi": {
-      "fleetHealth": "Fleet Health",
+      "fleetHealth": "Online Nodes",
       "onlineRate": "{{rate}}% online",
+      "reportingCount": "{{count}} reporting",
       "avgCpu": "Average CPU",
       "totalCores": "{{cores}} vCPUs total",
       "memory": "Cluster Memory",
@@ -176,20 +172,22 @@
       "periodTotal": "Period {{total}}"
     },
     "charts": {
-      "resourceTitle": "Live Resource Load",
-      "resourceDesc": "Top {{count}} online nodes by utilization — click any bar to inspect",
+      "resourceTitle": "Live Node Load",
+      "resourceDesc": "Top {{count}} online nodes by pressure — click any bar to inspect",
+      "modeBoth": "Both",
+      "clickToInspect": "Click to inspect",
       "liveBandwidthTitle": "Live Cluster Bandwidth",
-      "liveBandwidthDesc": "Rolling {{seconds}}s aggregate downlink & uplink from live snapshots",
+      "liveBandwidthDesc": "Rolling {{seconds}}s aggregate downlink & uplink rate",
       "trafficTopTitle": "Period Traffic Leaders",
-      "trafficTopDesc": "Top {{count}} nodes by current billing period transfer",
-      "trafficUsed": "Period traffic",
-      "regionTitle": "Regional Footprint",
-      "regionDesc": "Node distribution & availability by region",
+      "trafficTopDesc": "Top {{count}} nodes by billing-period consumption",
+      "regionTitle": "Regional Distribution",
+      "regionDesc": "Node count and availability by region",
+      "regionsUnit": "regions",
+      "otherRegions": "Other",
       "unknownRegion": "Unknown",
       "noOnlineNodes": "No online nodes reporting yet",
       "noTrafficData": "No traffic recorded yet",
-      "collectingSamples": "Collecting live telemetry…",
-      "nodesUnit": "{{count}}"
+      "collectingSamples": "Collecting live telemetry…"
     }
   },
   "charts": {
@@ -215,6 +213,7 @@
       "24": "24h",
       "168": "7d"
     },
+    "avg": "Avg {{value}}",
     "cpuTitle": "CPU Utilization",
     "cpuPeak": "Peak {{peak}}%",
     "memTitle": "Memory Usage",

@@ -45,27 +45,26 @@ src/
 ├── App.tsx                 Arc 外壳（彩色渐变画框、侧栏折叠与移动端抽屉、右侧主画布、路由分发）
 ├── components/
 │   ├── ArcSidebar.tsx      Arc 侧栏（搜索、概览/在线快捷磁贴、可折叠分组树、单行节点列表、底部工具栏）
-│   ├── ArcThemeEditor.tsx  原生 Arc 主题调色器（2D 点阵色盘、随机配色、5 页色板、波浪强度、颗粒旋钮）
+│   ├── ArcThemeEditor.tsx  Arc 主题调色器（2D 点阵色盘、随机配色、5 页色板、波浪强度、颗粒旋钮、磨砂透光）
+│   ├── ChartKit.tsx        统一图表基础层（ChartPanel、ChartLegend、磨砂 ChartTooltip、统一网格与坐标轴规范）
 │   ├── OverviewDashboard.tsx 首页 `/` 集群遥测总览（分组筛选 + 4 KPI 卡 + 4 实时图表）
 │   ├── OverviewCharts.tsx  首页实时图表组（节点负载对比、实时带宽趋势、本期流量排行、地区分布环图）
 │   ├── MonitorPage.tsx     单节点详情页入口
-│   ├── ServerTable.tsx     紧凑型服务器表格视图（首页已不再引用，保留备用）
-│   ├── NodeDetail.tsx      单节点遥测详情工作台（实时概览卡 + 全宽延迟图 + 2×2 历史图表 + 硬件账期）
-│   ├── RowDetails.tsx      表格展开行与可复用的节点硬件概览卡
-│   ├── NodeMarks.tsx       状态点、国旗 Emoji、系统图标、进度条、数字槽位
+│   ├── NodeDetail.tsx      单节点遥测详情工作台（实时概览卡 + 全宽延迟图 + 2×2 历史面积图 + 硬件账期）
+│   ├── RowDetails.tsx      单节点硬件、运行状态、流量计量与账期规格卡片组
+│   ├── NodeMarks.tsx       状态点、国旗 Emoji、系统图标、双语义进度条
 │   └── ui/                 shadcn 风格基础组件
 ├── lib/
 │   ├── api.ts              Node 类型、safeNodes、useNodes（WebSocket + 轮询兜底）
-│   ├── arc-theme.ts        原生 Arc 色彩引擎（HSB/OKLab、深浅双半面、随机和谐色、语义 Token 派生）
+│   ├── arc-theme.ts        Arc 色彩引擎（HSB/OKLCH、深浅双半面、随机和谐色、语义与 5 色图表 Token 派生）
 │   ├── history.ts          历史数据请求、时间范围、60 秒缓存
 │   ├── filters.ts          节点筛选类型与纯函数
 │   ├── format.ts           字节、速率、时长、坐标轴刻度等纯函数
 │   ├── prefs.ts            访客本地偏好（localStorage）
 │   ├── config.ts           读取/保存 theme.json 声明的站点设置
 │   ├── route.tsx           `/node/{id}` 路由与客户端 Link
-│   ├── themes.ts           经典 tweakcn 内置配色方案
 │   └── pings.ts            节点是否有延迟探测的本地记录
-└── index.css               主题 Token、Arc Shell 变量、Tailwind 入口、颗粒纹理与国旗字体栈
+└── index.css               默认 Arc 主题 Token、Arc Shell 变量、Tailwind 入口、颗粒纹理与国旗字体栈
 ```
 
 ## 路由
@@ -115,18 +114,18 @@ src/
 
 ## Arc 布局与交互
 
-主题采用原生 Arc 浏览器风格的「彩色外壳 + 左侧导航栏 + 右侧悬浮主画布」App Shell：
+主题采用 Arc 浏览器风格的「彩色外壳 + 左侧导航栏 + 右侧悬浮主画布」App Shell：
 
 - 桌面端视口定高（`lg:h-dvh lg:overflow-hidden`），左侧栏与右侧主画布各自独立滚动，页脚位于右侧主画布底部；支持点击按钮或 `Ctrl+\` / `Cmd+\` 收起侧栏让主画布铺满窗口
 - 移动端（`< lg`）自动收起为顶部精简栏 + 左侧滑出抽屉，保证无横向溢出
 - 左侧栏负责全局搜索、「仅看在线」筛选、按节点顺序排列的可折叠分组文件夹与单行节点切换
-- 首页 `/` 只展示全站汇总遥测（分组筛选、KPI 与实时图表），不再重复节点列表，切换节点统一走左侧栏；单节点 `/node/{id}` 依次是实时指标卡、全宽延迟图、2×2 历史图表与硬件/流量/账期规格，顶部提供上一台/下一台快捷切换
-- 右侧主画布默认是干净高对比的 Arc 纸面（不叠颗粒、不磨砂），胶片颗粒只落在左侧栏与外壳渐变上；用户可通过「画布磨砂透光」滑块自由调节为亚克力磨砂效果
+- 首页 `/` 展示全站汇总遥测（分组筛选、KPI 与实时图表）；单节点 `/node/{id}` 依次是实时指标卡、全宽延迟图、2×2 历史面积图与硬件/运行状态/流量/账期规格，顶部提供上一台/下一台快捷切换
+- 右侧主画布与内部卡片统一支持「画布磨砂透光」同步调节，胶片颗粒只落在左侧栏与外壳渐变上
 
 ## 样式规范
 
-- 只使用语义化 Token：`bg-background`、`text-foreground`、`text-muted-foreground`、`border-border`、`bg-card` 等。业务组件里不写 `bg-gray-100`、`text-zinc-600` 这类调色板色值
-- 颜色倾向通过 `src/index.css` 主题变量调整，不在组件里堆色值。状态色统一使用语义 Token（`--success`、`--warning`、`--info`、`--destructive` 及其 `-foreground`），禁止在业务组件里硬编码 `emerald-*`/`amber-*`/`blue-*`/`red-*` 调色板色值
+- 只使用语义化 Token：`bg-stage`、`bg-card`、`text-foreground`、`text-muted-foreground`、`border-border` 等。业务组件里不写 `bg-gray-100`、`text-zinc-600` 这类调色板色值
+- 颜色倾向通过 `src/index.css` 与 `src/lib/arc-theme.ts` 动态主题变量控制，不在组件里硬编码调色板色值。状态色统一使用语义 Token（`--success`、`--warning`、`--info`、`--destructive` 及其 `-foreground`），图表色统一使用 `--chart-1..5`
 - 界面文案统一通过 `i18next`（`src/locales/zh-CN.json` 与 `src/locales/en-US.json`）管理，默认跟随浏览器语言并支持手动切换，禁止在组件内硬编码业务文案；源码注释用英文
 - 尺寸走 Tailwind 预设刻度和 4px 基线：`text-xs/sm/base/lg`、`p-2/3/4`、`gap-2`、`rounded-md/lg`。禁止滥用任意像素值；只有 recharts/SVG 画布或需要动态计算的定位才允许中括号
 - 类名合并统一用 `cn()`（`clsx` + `tailwind-merge`）

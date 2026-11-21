@@ -7,61 +7,44 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* shadcn/ui's slate palette as its Tailwind v4 template ships it: a white page,
-   an ink-blue-black primary, hairline borders, and a dark mode on the same greys
-   rather than a navy. The status colours -- the green, amber and red of the
-   dots, the bars and an expiry -- are Tailwind's own, used inline where they
-   mean something, as shadcn projects do. Only the chart hues are the theme's:
-   five probe lines have to stay apart on both grounds, and the kit's set pairs
-   a light yellow with white. */
-/* Claude (tweakcnui) Palette:
-   Faithful recreation of Claude's warm, organic, eye-comfort design language.
-   Light mode: Soft parchment paper background with warm charcoal typography and terracotta accents.
-   Dark mode: Deep roasted velvet espresso background with ivory text and glowing warm accents. */
+/* Default Arc theme tokens (synced with DEFAULT_ARC_COLORS = #6CBAD9, #7F7EDC at 75%).
+   Runtime updates from the Arc color engine override these variables cleanly on :root. */
 :root {
-  --background: oklch(0.9818 0.0054 95.0986);
-  --foreground: oklch(0.3438 0.0269 95.7226);
-  --card: oklch(0.9818 0.0054 95.0986);
-  --card-foreground: oklch(0.1908 0.0020 106.5859);
-  --popover: oklch(1.0000 0 0);
-  --popover-foreground: oklch(0.2671 0.0196 98.9390);
-  --primary: oklch(0.6171 0.1375 39.0427);
-  --primary-foreground: oklch(1.0000 0 0);
-  --secondary: oklch(0.9245 0.0138 92.9892);
-  --secondary-foreground: oklch(0.4334 0.0177 98.6048);
-  --muted: oklch(0.9341 0.0153 90.2390);
-  --muted-foreground: oklch(0.6059 0.0075 97.4233);
-  --accent: oklch(0.9245 0.0138 92.9892);
-  --accent-foreground: oklch(0.2671 0.0196 98.9390);
-  --destructive: oklch(0.577 0.22 27);
-  --destructive-foreground: oklch(1.0000 0 0);
-  --success: oklch(0.596 0.145 163.225);
-  --success-foreground: oklch(0.985 0 0);
-  --warning: oklch(0.666 0.179 58.318);
-  --warning-foreground: oklch(0.985 0 0);
-  --info: oklch(0.588 0.158 241.966);
-  --info-foreground: oklch(0.985 0 0);
-  --border: oklch(0.8847 0.0069 97.3627);
-  --input: oklch(0.7621 0.0156 98.3528);
-  --ring: oklch(0.6171 0.1375 39.0427);
-  --chart-1: oklch(0.5583 0.1276 42.9956);
-  --chart-2: oklch(0.6898 0.1581 290.4107);
-  --chart-3: oklch(0.8816 0.0276 93.1280);
-  --chart-4: oklch(0.8822 0.0403 298.1792);
-  --chart-5: oklch(0.5608 0.1348 42.0584);
-  --sidebar: oklch(0.9663 0.0080 98.8792);
-  --sidebar-foreground: oklch(0.3590 0.0051 106.6524);
-  --sidebar-primary: oklch(0.6171 0.1375 39.0427);
-  --sidebar-primary-foreground: oklch(0.9881 0 0);
-  --sidebar-accent: oklch(0.9245 0.0138 92.9892);
-  --sidebar-accent-foreground: oklch(0.3250 0 0);
-  --sidebar-border: oklch(0.9401 0 0);
-  --sidebar-ring: oklch(0.7731 0 0);
+  --background: #84C7E1;
+  --stage: #F1F5F8;
+  --foreground: #141920;
+  --card: #FDFEFF;
+  --card-foreground: #141920;
+  --popover: #FFFFFF;
+  --popover-foreground: #141920;
+  --primary: #2B5E73;
+  --primary-foreground: #FFFFFF;
+  --secondary: #DDE8F0;
+  --secondary-foreground: #141920;
+  --muted: #DFE9F1;
+  --muted-foreground: #546070;
+  --accent: #D7E5EF;
+  --accent-foreground: #141920;
+  --destructive: #D9383A;
+  --destructive-foreground: #FFFFFF;
+  --success: #168A5B;
+  --success-foreground: #FFFFFF;
+  --warning: #C27803;
+  --warning-foreground: #FFFFFF;
+  --info: #2563EB;
+  --info-foreground: #FFFFFF;
+  --border: rgba(15, 30, 38, 0.105);
+  --input: rgba(15, 30, 38, 0.16);
+  --ring: #2B5E73;
+  --chart-1: #2F7B99;
+  --chart-2: #6260B8;
+  --chart-3: #B17A2E;
+  --chart-4: #24866A;
+  --chart-5: #B54F73;
 
-  /* Arc shell surfaces & chrome tokens */
-  --stage: oklch(1 0 0);
-  --arc-chrome-fg: var(--foreground);
-  --arc-chrome-muted: color-mix(in oklch, var(--foreground) 74%, transparent);
+  /* Arc shell chrome tokens */
+  --arc-chrome-fg: #102029;
+  --arc-chrome-muted: rgba(16, 32, 41, 0.72);
   --arc-chrome-glass: rgba(255, 255, 255, 0.78);
   --arc-chrome-hover: rgba(0, 0, 0, 0.055);
   --arc-chrome-field: rgba(255, 255, 255, 0.48);
@@ -71,58 +54,50 @@
   --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Segoe UI Variable Text", "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
 
-  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
-  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
-  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 2px 4px -1px hsl(0 0% 0% / 0.10);
-  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 4px 6px -1px hsl(0 0% 0% / 0.10);
-  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 8px 10px -1px hsl(0 0% 0% / 0.10);
-  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+  --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 2px 6px -1px rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  --shadow: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 8px 20px -4px rgb(0 0 0 / 0.10), 0 2px 6px -2px rgb(0 0 0 / 0.06);
+  --shadow-lg: 0 12px 28px -6px rgb(0 0 0 / 0.12), 0 4px 10px -4px rgb(0 0 0 / 0.06);
+  --shadow-xl: 0 20px 36px -8px rgb(0 0 0 / 0.16), 0 8px 16px -6px rgb(0 0 0 / 0.08);
+  --shadow-2xl: 0 24px 48px -12px rgb(0 0 0 / 0.24);
 }
 
 .dark {
-  --background: oklch(0.2679 0.0036 106.6427);
-  --foreground: oklch(0.8074 0.0142 93.0137);
-  --card: oklch(0.2679 0.0036 106.6427);
-  --card-foreground: oklch(0.9818 0.0054 95.0986);
-  --popover: oklch(0.3085 0.0035 106.6039);
-  --popover-foreground: oklch(0.9211 0.0040 106.4781);
-  --primary: oklch(0.6724 0.1308 38.7559);
-  --primary-foreground: oklch(1.0000 0 0);
-  --secondary: oklch(0.32 0.006 106.6);
-  --secondary-foreground: oklch(0.85 0.012 93.0);
-  --muted: oklch(0.2213 0.0038 106.7070);
-  --muted-foreground: oklch(0.7713 0.0169 99.0657);
-  --accent: oklch(0.2130 0.0078 95.4245);
-  --accent-foreground: oklch(0.9663 0.0080 98.8792);
-  --destructive: oklch(0.6368 0.2078 25.3313);
-  --destructive-foreground: oklch(1.0000 0 0);
-  --success: oklch(0.72 0.16 162);
-  --success-foreground: oklch(0.145 0 0);
-  --warning: oklch(0.78 0.16 70);
-  --warning-foreground: oklch(0.145 0 0);
-  --info: oklch(0.70 0.15 245);
-  --info-foreground: oklch(0.145 0 0);
-  --border: oklch(0.3618 0.0101 106.8928);
-  --input: oklch(0.4336 0.0113 100.2195);
-  --ring: oklch(0.6724 0.1308 38.7559);
-  --chart-1: oklch(0.5583 0.1276 42.9956);
-  --chart-2: oklch(0.6898 0.1581 290.4107);
-  --chart-3: oklch(0.2130 0.0078 95.4245);
-  --chart-4: oklch(0.3074 0.0516 289.3230);
-  --chart-5: oklch(0.5608 0.1348 42.0584);
-  --sidebar: oklch(0.2357 0.0024 67.7077);
-  --sidebar-foreground: oklch(0.8074 0.0142 93.0137);
-  --sidebar-primary: oklch(0.3250 0 0);
-  --sidebar-primary-foreground: oklch(0.9881 0 0);
-  --sidebar-accent: oklch(0.1680 0.0020 106.6177);
-  --sidebar-accent-foreground: oklch(0.8074 0.0142 93.0137);
-  --sidebar-border: oklch(0.9401 0 0);
-  --sidebar-ring: oklch(0.7731 0 0);
+  --background: #232A34;
+  --stage: #171920;
+  --foreground: #EBEFF4;
+  --card: #1E2129;
+  --card-foreground: #EBEFF4;
+  --popover: #21242E;
+  --popover-foreground: #EBEFF4;
+  --primary: #6CBAD9;
+  --primary-foreground: #121216;
+  --secondary: #262A34;
+  --secondary-foreground: #EBEFF4;
+  --muted: #21252E;
+  --muted-foreground: #9EA4B4;
+  --accent: #2D3645;
+  --accent-foreground: #EBEFF4;
+  --destructive: #F05A5B;
+  --destructive-foreground: #FFFFFF;
+  --success: #34C785;
+  --success-foreground: #0E1A14;
+  --warning: #F0B240;
+  --warning-foreground: #1A140A;
+  --info: #5FA0FA;
+  --info-foreground: #0E1624;
+  --border: rgba(255, 255, 255, 0.095);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #6CBAD9;
+  --chart-1: #6DBEE0;
+  --chart-2: #9C9CF2;
+  --chart-3: #E0B262;
+  --chart-4: #5DC9A3;
+  --chart-5: #E68AA8;
 
-  /* Arc shell surfaces & chrome tokens (dark) */
-  --stage: oklch(0.205 0.004 285);
+  /* Arc shell chrome tokens (dark) */
   --arc-chrome-fg: rgba(255, 255, 255, 0.94);
   --arc-chrome-muted: rgba(255, 255, 255, 0.72);
   --arc-chrome-glass: rgba(255, 255, 255, 0.14);
@@ -150,6 +125,7 @@
   --shadow-2xl: var(--shadow-2xl);
 
   --color-background: var(--background);
+  --color-stage: var(--stage);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -179,19 +155,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 @layer base {
   * { @apply border-border outline-ring/50; }
-  /* Without a reserved gutter, leaving a page taller than the fold widens it. */
   html {
     scrollbar-gutter: stable;
     color-scheme: light;
@@ -201,17 +168,12 @@
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
-  /* Native scrollbars, form controls and the search field's clear button follow
-     the theme rather than the OS: a light scrollbar on the dark page glows. */
   html.dark { color-scheme: dark; }
   body { @apply bg-background text-foreground font-sans antialiased; }
 
-  /* Scrollbars follow the theme rather than the OS: a hairline thumb drawn on a
-     transparent track, thickening as the foreground does, so a scrollable panel
-     inside the card reads as part of the paper. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 20%, transparent) transparent;
   }
   ::-webkit-scrollbar {
     width: 10px;
@@ -222,29 +184,26 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background-color: color-mix(in oklch, var(--foreground) 20%, transparent);
+    background-color: color-mix(in oklch, var(--foreground) 18%, transparent);
     background-clip: content-box;
     border: 3px solid transparent;
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: color-mix(in oklch, var(--foreground) 34%, transparent);
+    background-color: color-mix(in oklch, var(--foreground) 32%, transparent);
   }
 }
 
 /* Tabular figures keep live numbers from shifting as they update. */
 .tnum { font-variant-numeric: tabular-nums; }
 
-/* Filter rows scroll on narrow screens without a scrollbar taking a line of
-   height from the controls above the chart. */
+/* Filter rows scroll on narrow screens without a scrollbar taking vertical height. */
 @utility scrollbar-none {
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 }
 
-/* Arc-style tactile film grain overlay:
-   Dark fine specks on light surfaces and soft white specks on dark surfaces,
-   matching Arc's multiply/screen grain texture without muddying colors. */
+/* Arc-style tactile film grain overlay on the outer gradient shell. */
 .bg-noise-light {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='arcGrainL'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.88' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.33 0.33 0.33 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23arcGrainL)'/%3E%3C/svg%3E");
   background-size: 180px 180px;
@@ -262,8 +221,27 @@
   background-position: 5px 5px;
 }
 
-/* Country flag emoji font stack: Twemoji polyfill first for Windows Chromium,
-   falling back to crisp native emoji fonts on macOS/iOS/Android/Firefox. */
+/* Country flag emoji font stack: self-hosted Twemoji polyfill first for Windows Chromium. */
 .flag-emoji {
   font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+
+/* Subtle Recharts Brush styling harmonized with Arc surfaces. */
+.recharts-brush > rect {
+  fill: var(--color-muted);
+  fill-opacity: 0.45;
+  stroke: var(--color-border);
+  rx: 5;
+}
+.recharts-brush .recharts-brush-slide {
+  fill: var(--color-primary);
+  fill-opacity: 0.14;
+}
+.recharts-brush .recharts-brush-traveller rect {
+  fill: var(--color-card);
+  stroke: var(--color-border);
+  rx: 3;
+}
+.recharts-brush .recharts-brush-traveller line {
+  stroke: var(--color-muted-foreground);
 }

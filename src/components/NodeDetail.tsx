@@ -2,10 +2,28 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ArrowDown, ArrowUp, Cpu, HardDrive, MemoryStick, Network } from "lucide-react"
 import {
-  Area, AreaChart, Brush, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer,
-  Tooltip, XAxis, YAxis,
+  Area,
+  AreaChart,
+  Brush,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts"
 
+import {
+  CHART_ACTIVE_DOT,
+  CHART_AXIS,
+  CHART_COLORS,
+  CHART_CURSOR,
+  CHART_GRID,
+  ChartLegend,
+  ChartPanel,
+  ChartTooltip,
+} from "@/components/ChartKit"
 import { deployed, Dot, Flag, Meter, OsIcon } from "@/components/NodeMarks"
 import { NodeOverview } from "@/components/RowDetails"
 import { Badge } from "@/components/ui/badge"
@@ -15,56 +33,34 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Toggle } from "@/components/ui/toggle"
 import type { Node } from "@/lib/api"
 import {
-  axisBytes, axisTop, bytes, clockFor, compact, cpuName, despike, ewma, FOREVER, monthUsage, osName, pair,
-  percent, quarters, rate, timeTicks, uptime, virtName,
+  axisBytes,
+  axisTop,
+  bytes,
+  clockFor,
+  compact,
+  cpuName,
+  despike,
+  ewma,
+  FOREVER,
+  monthUsage,
+  osName,
+  pair,
+  percent,
+  quarters,
+  rate,
+  timeTicks,
+  uptime,
+  virtName,
 } from "@/lib/format"
 import { fetchHistory, inRanges, LATENCY_HOURS, RANGES, type History, type Point, type Series } from "@/lib/history"
 import { knownPing, recordPing } from "@/lib/pings"
 import { usePref } from "@/lib/prefs"
 import { cn } from "@/lib/utils"
 
-const AXIS = { stroke: "currentColor", fontSize: 11, tickLine: false, axisLine: false }
-
-const SERIES = { dot: false as const, strokeWidth: 1.75, isAnimationActive: false }
-
+const SERIES = { dot: false as const, strokeWidth: 2, isAnimationActive: false }
 const Y_WIDTH = 64
 
-const PALETTE = [1, 2, 3, 4, 5].map((i) => `var(--color-chart-${i})`)
-
-const TIP = {
-  fontSize: 12,
-  padding: "8px 12px",
-  background: "var(--color-popover)",
-  color: "var(--color-popover-foreground)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "calc(var(--radius) - 2px)",
-  boxShadow: "0 8px 24px rgb(0 0 0 / 0.14)",
-}
-
-function Panel({
-  title,
-  aside,
-  heightClass = "h-56",
-  children,
-}: {
-  title: React.ReactNode
-  aside?: React.ReactNode
-  heightClass?: string
-  children: React.ReactNode
-}) {
-  return (
-    <Card className="min-w-0 gap-3 p-4 sm:p-5">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold tracking-[-0.01em] text-foreground">{title}</h3>
-        {aside && <div className="tnum text-xs text-muted-foreground">{aside}</div>}
-      </div>
-      <div className={cn("w-full min-w-0 text-muted-foreground", heightClass)}>{children}</div>
-    </Card>
-  )
-}
-
 type Fetched = { key: string; hours: number; data: History; failed: string }
-
 const EMPTY: History = { metrics: [], ping: [], probes: {} }
 
 function useHistory(id: number, hours: number, series: Series) {
@@ -132,20 +128,19 @@ function timeAxis(rows: { ts: number }[], hours: number, locale: string, from = 
     ticks: rows.length ? timeTicks(rows[from].ts, rows[to].ts) : undefined,
     tickFormatter: clockFor(hours, locale),
     minTickGap: hours > 24 ? 72 : 44,
-    ...AXIS,
+    ...CHART_AXIS,
   }
 }
 
 /**
- * Full-width probe latency chart with Smokeping bands, despike/EWMA filters,
- * per-probe loss toggles, and interactive Brush zoom.
+ * Full-width probe latency panel with Smokeping jitter bands, despike/EWMA filters,
+ * enriched per-probe pills (latest/avg ms + loss%), and Arc-styled Brush zoom.
  */
 export function Latency({
-  id, hours: fixed, card, title, className, onKnown,
+  id, hours: fixed, title, className, onKnown,
 }: {
   id: number
   hours?: number
-  card?: boolean
   title?: string
   className?: string
   onKnown?: (has: boolean) => void
@@ -171,7 +166,17 @@ export function Latency({
         .map((taskId) => {
           const points = (data?.ping ?? []).filter((p) => p.task_id === taskId)
           const loss = data?.loss?.[taskId] ?? 0
-          return { id: taskId, name: data?.probes?.[taskId] ?? t("charts.probeFallback", { id: taskId }), points, loss }
+          const valid = points.map((p) => p.latency).filter((v): v is number => v !== null)
+          const avg = valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null
+          const latest = valid.length > 0 ? valid[valid.length - 1] : null
+          return {
+            id: taskId,
+            name: data?.probes?.[taskId] ?? t("charts.probeFallback", { id: taskId }),
+            points,
+            loss,
+            avg,
+            latest,
+          }
         })
         .filter((s) => s.points.length > 0),
     [data, t],
@@ -181,7 +186,7 @@ export function Latency({
     () => pingSeries.filter((s) => !hiddenProbes.includes(s.id)),
     [pingSeries, hiddenProbes],
   )
-  const color = (taskId: number) => PALETTE[pingSeries.findIndex((p) => p.id === taskId) % PALETTE.length]
+  const color = (taskId: number) => CHART_COLORS[pingSeries.findIndex((p) => p.id === taskId) % CHART_COLORS.length]
 
   const pingRows = useMemo(() => {
     const rows = new Map<
@@ -223,28 +228,28 @@ export function Latency({
     onKnown?.(failed ? true : recordPing(id, has, hours))
   }, [data, loading, failed, id, has, hours, onKnown])
 
-  const frame = card ? "rounded-xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs" : ""
-  if (!data) return <div className={frame}><Skeleton className={cn("w-full", className)} /></div>
-  if (failed) return <div className={frame}><Failed message={failed} retry={retry} /></div>
+  if (!data) return <Card className="p-4 sm:p-5"><Skeleton className={cn("w-full rounded-lg", className)} /></Card>
+  if (failed) return <Card className="p-4 sm:p-5"><Failed message={failed} retry={retry} /></Card>
   if (!has && knownPing(id) !== true) return null
+
   const last = pingRows.length - 1
   const [from, to] = zoom?.of === data ? zoom.range.map((i) => Math.min(i, last)) : [0, last]
   const drawn = (taskId: number) => `${despiked ? (smoothed ? "f" : "s") : smoothed ? "e" : "t"}${taskId}`
 
   return (
-    <section className={cn("min-w-0 space-y-3", frame)}>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-        {title && <h3 className="text-sm font-semibold tracking-[-0.01em] text-foreground">{title}</h3>}
-        {fixed === undefined && (
-          <Segmented
-            value={hours}
-            onChange={setPicked}
-            options={rangeOptions}
-            label={t("charts.rangeLabel")}
-            className="scrollbar-none h-7 max-w-full overflow-x-auto max-sm:[&>button]:px-2"
-          />
-        )}
-        <div className="ml-auto flex gap-1.5">
+    <ChartPanel
+      title={title ?? t("charts.latencyTitle")}
+      aside={
+        <div className="flex flex-wrap items-center gap-1.5">
+          {fixed === undefined && (
+            <Segmented
+              value={hours}
+              onChange={setPicked}
+              options={rangeOptions}
+              label={t("charts.rangeLabel")}
+              className="scrollbar-none h-7 max-w-full overflow-x-auto max-sm:[&>button]:px-2"
+            />
+          )}
           <Toggle
             pressed={despiked}
             onPressedChange={setDespiked}
@@ -260,38 +265,59 @@ export function Latency({
             {t("charts.smooth")}
           </Toggle>
         </div>
-      </div>
-
-      {has && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {pingSeries.map((s) => {
-            const shown = !hiddenProbes.includes(s.id)
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() =>
-                  setHiddenProbes((h) => (shown ? [...h, s.id] : h.filter((item) => item !== s.id)))
-                }
-                aria-pressed={shown}
-                className={cn(
-                  "inline-flex h-6 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-all hover:bg-muted cursor-pointer",
-                  !shown ? "border-dashed border-border/60 opacity-40" : "border-border/80 bg-card shadow-2xs",
-                )}
-              >
-                <svg width="14" height="6" className="shrink-0" aria-hidden>
-                  <line x1="0" y1="3" x2="14" y2="3" stroke={color(s.id)} strokeWidth="2" />
-                </svg>
-                {s.name}
-                <span className="tnum font-normal text-muted-foreground">
-                  {s.loss > 0 && s.loss < 0.1 ? "<0.1" : s.loss.toFixed(1)}%
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-
+      }
+      toolbar={
+        has ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {pingSeries.map((s) => {
+              const shown = !hiddenProbes.includes(s.id)
+              const probeColor = color(s.id)
+              const lossText = s.loss > 0 && s.loss < 0.1 ? "<0.1" : s.loss.toFixed(1)
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() =>
+                    setHiddenProbes((h) => (shown ? [...h, s.id] : h.filter((item) => item !== s.id)))
+                  }
+                  aria-pressed={shown}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer",
+                    shown
+                      ? "border-border bg-muted/50 text-foreground hover:bg-muted"
+                      : "border-dashed border-border/60 bg-transparent text-muted-foreground opacity-45 hover:opacity-75",
+                  )}
+                >
+                  <span
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: probeColor }}
+                    aria-hidden="true"
+                  />
+                  <span className="font-medium">{s.name}</span>
+                  {s.avg !== null && (
+                    <span className="tnum font-semibold text-foreground">
+                      {Math.round(s.avg)}ms
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      "tnum text-[11px]",
+                      s.loss >= 5
+                        ? "font-semibold text-destructive"
+                        : s.loss > 0
+                          ? "font-medium text-warning"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    {lossText}%
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        ) : null
+      }
+    >
       {!has ? (
         <p className="py-6 text-center text-sm text-muted-foreground">{t("charts.noPing")}</p>
       ) : (
@@ -300,17 +326,22 @@ export function Latency({
             <p className="py-8 text-center text-sm">{t("charts.noProbeSelected")}</p>
           ) : (
             <ResponsiveContainer>
-              <ComposedChart data={pingRows}>
-                <CartesianGrid className="stroke-border/70" vertical={false} />
+              <ComposedChart data={pingRows} margin={{ top: 6, right: 8, left: -6, bottom: 0 }}>
+                <CartesianGrid {...CHART_GRID} />
                 <XAxis {...timeAxis(pingRows, hours, lang, from, to)} />
-                <YAxis unit="ms" width={52} domain={["auto", "auto"]} {...AXIS} />
+                <YAxis unit="ms" width={54} domain={["auto", "auto"]} {...CHART_AXIS} />
                 <Tooltip
-                  labelFormatter={(ts) => new Date(Number(ts)).toLocaleString(lang)}
-                  formatter={(v, name, item) => {
-                    const loss = Number(item?.payload?.[`l${String(item.dataKey).slice(1)}`] ?? 0)
-                    return [`${Math.round(Number(v))} ms${loss > 0 ? ` · ${t("charts.loss", { loss })}` : ""}`, name]
-                  }}
-                  contentStyle={TIP}
+                  cursor={CHART_CURSOR}
+                  content={
+                    <ChartTooltip
+                      labelFormatter={(ts) => new Date(Number(ts)).toLocaleString(lang)}
+                      valueFormatter={(v) => `${Math.round(Number(v))} ms`}
+                      subFormatter={(entry) => {
+                        const loss = Number(entry.payload?.[`l${String(entry.dataKey).slice(1)}`] ?? 0)
+                        return loss > 0 ? `· ${t("charts.loss", { loss })}` : null
+                      }}
+                    />
+                  }
                 />
                 {shownProbes.length === 1 &&
                   shownProbes.map((s) => (
@@ -319,7 +350,7 @@ export function Latency({
                       dataKey={`${despiked ? "c" : "b"}${s.id}`}
                       stroke="none"
                       fill={color(s.id)}
-                      fillOpacity={0.16}
+                      fillOpacity={0.14}
                       isAnimationActive={false}
                       tooltipType="none"
                       legendType="none"
@@ -332,7 +363,7 @@ export function Latency({
                       key={`raw${s.id}`}
                       dataKey={`${despiked ? "s" : "t"}${s.id}`}
                       stroke={color(s.id)}
-                      strokeOpacity={0.35}
+                      strokeOpacity={0.32}
                       strokeWidth={1}
                       dot={false}
                       isAnimationActive={false}
@@ -341,23 +372,27 @@ export function Latency({
                       connectNulls
                     />
                   ))}
-                {shownProbes.map((s) => (
-                  <Line
-                    key={s.id}
-                    dataKey={drawn(s.id)}
-                    name={s.name}
-                    stroke={color(s.id)}
-                    {...SERIES}
-                    connectNulls
-                  />
-                ))}
+                {shownProbes.map((s) => {
+                  const stroke = color(s.id)
+                  return (
+                    <Line
+                      key={s.id}
+                      dataKey={drawn(s.id)}
+                      name={s.name}
+                      stroke={stroke}
+                      {...SERIES}
+                      activeDot={{ ...CHART_ACTIVE_DOT, fill: stroke }}
+                      connectNulls
+                    />
+                  )
+                })}
                 <Brush
                   dataKey="ts"
-                  height={22}
+                  height={20}
                   travellerWidth={8}
                   tickFormatter={clockFor(hours, lang)}
                   fill="var(--color-muted)"
-                  stroke="var(--color-muted-foreground)"
+                  stroke="var(--color-border)"
                   onChange={(r) => setZoom({ of: data, range: [r.startIndex ?? 0, r.endIndex ?? last] })}
                 />
               </ComposedChart>
@@ -365,7 +400,7 @@ export function Latency({
           )}
         </div>
       )}
-    </section>
+    </ChartPanel>
   )
 }
 
@@ -374,23 +409,36 @@ function LiveStatCard({
   value,
   sub,
   icon: Icon,
-  meter,
+  accentColor,
+  bar,
 }: {
   label: string
   value: React.ReactNode
   sub: React.ReactNode
   icon: React.ComponentType<{ className?: string }>
-  meter?: number | null
+  accentColor: string
+  bar: React.ReactNode
 }) {
   return (
-    <Card className="min-w-0 justify-between gap-2.5 p-4">
+    <Card className="min-w-0 justify-between gap-3 p-4">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <span
+            className="size-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: accentColor }}
+            aria-hidden="true"
+          />
+          <span className="truncate">{label}</span>
+        </span>
+        <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-muted/80 text-muted-foreground">
+          <Icon className="size-3.5" />
+        </span>
       </div>
-      <div className="space-y-1.5">
-        <div className="tnum truncate text-xl font-semibold tracking-[-0.025em] text-foreground">{value}</div>
-        {meter !== undefined && <Meter pct={meter} className="h-1.5" />}
+      <div className="space-y-2.5">
+        <div className="tnum truncate text-2xl font-semibold tracking-[-0.03em] leading-none text-foreground">
+          {value}
+        </div>
+        {bar}
         <div className="tnum truncate text-xs text-muted-foreground">{sub}</div>
       </div>
     </Card>
@@ -398,12 +446,12 @@ function LiveStatCard({
 }
 
 /**
- * Reorganized Arc Server Detail Studio (`/node/{id}`):
- * 1. Unified hero header with global time-range selector
- * 2. 4 live metric tiles (CPU / Memory / Disk / Live Network & Traffic)
+ * Single-server telemetry studio (`/node/{id}`):
+ * 1. Compact identity header + global time-window selector
+ * 2. 4 aligned live telemetry cards anchored to chart colors
  * 3. Full-width latency probe panel
- * 4. Simultaneous 2x2 historical telemetry grid (CPU, Memory, Network, Disk)
- * 5. Structured hardware & billing specification grid
+ * 4. Unified 2x2 historical area charts (CPU, Memory, Network, Disk)
+ * 5. Non-redundant hardware, runtime, traffic & billing specifications
  */
 export function NodeDetail({ node }: { node: Node }) {
   const { t, i18n } = useTranslation()
@@ -431,14 +479,23 @@ export function NodeDetail({ node }: { node: Node }) {
     [data],
   )
 
-  const tops = useMemo(() => {
+  const summary = useMemo(() => {
     const max = (pick: (row: Point) => number) =>
       metricRows.reduce((hi, row) => Math.max(hi, pick(row)), 0)
     const cpuPeak = max((row) => row.cpu)
+    const cpuAvg =
+      metricRows.length > 0
+        ? metricRows.reduce((sum, row) => sum + row.cpu, 0) / metricRows.length
+        : 0
+    const rxPeak = max((row) => row.net_rx)
+    const txPeak = max((row) => row.net_tx)
     return {
       cpuPeak,
-      cpu: axisTop(cpuPeak, 4, 10, 100),
-      rate: axisTop(max((row) => Math.max(row.net_rx, row.net_tx)), 1024, 1024),
+      cpuAvg,
+      rxPeak,
+      txPeak,
+      cpuTop: axisTop(cpuPeak, 4, 10, 100),
+      rateTop: axisTop(Math.max(rxPeak, txPeak), 1024, 1024),
     }
   }, [metricRows])
 
@@ -447,10 +504,11 @@ export function NodeDetail({ node }: { node: Node }) {
   const cpuPct = m ? m.cpu : null
   const memPct = m ? percent(m.mem_used, m.mem_total) : null
   const diskPct = m ? percent(m.disk_used, m.disk_total) : null
+  const netQuotaPct = node.traffic_limit > 0 ? percent(usedTraffic, node.traffic_limit) : null
 
   return (
     <div className="@container min-w-0 space-y-5">
-      {/* 1. Unified Hero Header + Global Time Window Switch */}
+      {/* 1. Identity Header + Global Time Window Selector */}
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -468,7 +526,7 @@ export function NodeDetail({ node }: { node: Node }) {
             </Badge>
           </div>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <OsIcon os={node.os} className="size-3.5" />
               <span>{osName(node.os) || "—"}</span>
@@ -505,12 +563,12 @@ export function NodeDetail({ node }: { node: Node }) {
       </div>
 
       {node.remark && (
-        <p className="min-w-0 rounded-xl border border-border/80 bg-muted/40 px-4 py-2.5 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap wrap-break-word">
+        <Card className="p-3.5 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap wrap-break-word">
           {node.remark}
-        </p>
+        </Card>
       )}
 
-      {/* 2. Four Live Metric Hero Cards */}
+      {/* 2. Four Aligned Live Metric Cards */}
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <LiveStatCard
           label={t("details.resources.cpu")}
@@ -523,7 +581,8 @@ export function NodeDetail({ node }: { node: Node }) {
                 : t("details.system.cores", { count: node.cpu_cores })
           }
           icon={Cpu}
-          meter={cpuPct}
+          accentColor={CHART_COLORS[0]}
+          bar={<Meter pct={cpuPct} color={CHART_COLORS[0]} className="h-1.5" />}
         />
 
         <LiveStatCard
@@ -531,7 +590,8 @@ export function NodeDetail({ node }: { node: Node }) {
           value={memPct !== null ? `${memPct.toFixed(1)}%` : "—"}
           sub={m ? pair(m.mem_used, m.mem_total) : bytes(node.mem_total)}
           icon={MemoryStick}
-          meter={memPct}
+          accentColor={CHART_COLORS[1]}
+          bar={<Meter pct={memPct} color={CHART_COLORS[1]} className="h-1.5" />}
         />
 
         <LiveStatCard
@@ -539,20 +599,21 @@ export function NodeDetail({ node }: { node: Node }) {
           value={diskPct !== null ? `${diskPct.toFixed(1)}%` : "—"}
           sub={m ? pair(m.disk_used, m.disk_total) : bytes(node.disk_total)}
           icon={HardDrive}
-          meter={diskPct}
+          accentColor={CHART_COLORS[4]}
+          bar={<Meter pct={diskPct} color={CHART_COLORS[4]} className="h-1.5" />}
         />
 
         <LiveStatCard
           label={t("charts.netTitle")}
           value={
             m ? (
-              <span className="inline-flex flex-wrap items-center gap-x-2.5 text-base font-semibold">
+              <span className="inline-flex items-baseline gap-2.5 text-lg font-semibold leading-none sm:text-xl">
                 <span className="inline-flex items-center gap-0.5">
-                  <ArrowDown className="size-3.5 text-success" />
+                  <ArrowDown className="size-3.5 shrink-0" style={{ color: CHART_COLORS[1] }} />
                   {compact(m.net_rx)}/s
                 </span>
                 <span className="inline-flex items-center gap-0.5">
-                  <ArrowUp className="size-3.5 text-info" />
+                  <ArrowUp className="size-3.5 shrink-0" style={{ color: CHART_COLORS[2] }} />
                   {compact(m.net_tx)}/s
                 </span>
               </span>
@@ -562,23 +623,45 @@ export function NodeDetail({ node }: { node: Node }) {
           }
           sub={`${t("details.traffic.period")} ${compact(usedTraffic)} / ${node.traffic_limit > 0 ? compact(node.traffic_limit) : FOREVER}`}
           icon={Network}
-          meter={node.traffic_limit > 0 ? percent(usedTraffic, node.traffic_limit) : undefined}
+          accentColor={CHART_COLORS[2]}
+          bar={
+            netQuotaPct !== null ? (
+              <Meter pct={netQuotaPct} color={CHART_COLORS[2]} className="h-1.5" />
+            ) : (
+              <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-foreground/8">
+                {m && m.net_rx + m.net_tx > 0 && (
+                  <>
+                    <div
+                      className="h-full transition-[width] duration-500"
+                      style={{
+                        width: `${Math.max(8, Math.min(92, (m.net_rx / (m.net_rx + m.net_tx)) * 100))}%`,
+                        backgroundColor: CHART_COLORS[1],
+                      }}
+                    />
+                    <div
+                      className="h-full flex-1 transition-[width] duration-500"
+                      style={{ backgroundColor: CHART_COLORS[2] }}
+                    />
+                  </>
+                )}
+              </div>
+            )
+          }
         />
       </div>
 
-      {/* 3. Full-Width Latency Intelligence Panel (automatically hidden when no probes exist) */}
+      {/* 3. Full-Width Latency Intelligence Panel */}
       {known !== false && (
         <Latency
           id={node.id}
           hours={safeHours}
-          card
           title={t("charts.latencyTitle")}
           className="h-68"
           onKnown={learn}
         />
       )}
 
-      {/* 4. Simultaneous 2x2 Historical Telemetry Grid */}
+      {/* 4. Unified 2x2 Historical Area Telemetry Grid */}
       {!data ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {[0, 1, 2, 3].map((i) => (
@@ -594,109 +677,211 @@ export function NodeDetail({ node }: { node: Node }) {
       ) : (
         <div className={cn("grid grid-cols-1 gap-4 transition-opacity xl:grid-cols-2", loading && "opacity-50")}>
           {/* CPU History */}
-          <Panel
+          <ChartPanel
             title={t("charts.cpuTitle")}
             aside={
-              <span className="inline-flex items-center gap-2">
-                {cpuPct !== null && <span className="font-medium text-foreground">{cpuPct.toFixed(1)}%</span>}
-                <span>{t("charts.cpuPeak", { peak: tops.cpuPeak.toFixed(1) })}</span>
-              </span>
+              <div className="tnum flex items-center gap-2.5 text-xs text-muted-foreground">
+                <span>{t("charts.avg", { value: `${summary.cpuAvg.toFixed(1)}%` })}</span>
+                <span className="font-medium text-foreground">
+                  {t("charts.cpuPeak", { peak: summary.cpuPeak.toFixed(1) })}
+                </span>
+              </div>
             }
           >
-            <ResponsiveContainer>
-              <AreaChart data={metricRows}>
-                <defs>
-                  <linearGradient id={`${gradPrefix}-cpu`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid className="stroke-border/70" vertical={false} />
-                <XAxis {...timeAxis(metricRows, safeHours, lang)} />
-                <YAxis domain={[0, tops.cpu]} ticks={quarters(tops.cpu)} unit="%" width={48} {...AXIS} />
-                <Tooltip labelFormatter={label} formatter={(v) => [`${Number(v).toFixed(1)}%`, t("charts.tabs.cpu")]} contentStyle={TIP} />
-                <Area dataKey="cpu" stroke="var(--color-chart-1)" fill={`url(#${gradPrefix}-cpu)`} {...SERIES} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Panel>
+            <div className="h-56 w-full min-w-0 text-muted-foreground">
+              <ResponsiveContainer>
+                <AreaChart data={metricRows} margin={{ top: 6, right: 6, left: -8, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={`${gradPrefix}-cpu`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={CHART_COLORS[0]} stopOpacity={0.28} />
+                      <stop offset="100%" stopColor={CHART_COLORS[0]} stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid {...CHART_GRID} />
+                  <XAxis {...timeAxis(metricRows, safeHours, lang)} />
+                  <YAxis domain={[0, summary.cpuTop]} ticks={quarters(summary.cpuTop)} unit="%" width={48} {...CHART_AXIS} />
+                  <Tooltip
+                    cursor={CHART_CURSOR}
+                    content={
+                      <ChartTooltip
+                        labelFormatter={label}
+                        valueFormatter={(v) => `${Number(v).toFixed(1)}%`}
+                      />
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="cpu"
+                    name={t("charts.tabs.cpu")}
+                    stroke={CHART_COLORS[0]}
+                    fill={`url(#${gradPrefix}-cpu)`}
+                    activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[0] }}
+                    {...SERIES}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartPanel>
 
           {/* Memory History */}
-          <Panel
+          <ChartPanel
             title={t("charts.memTitle")}
-            aside={m ? pair(m.mem_used, m.mem_total) : bytes(node.mem_total)}
-          >
-            <ResponsiveContainer>
-              <AreaChart data={metricRows}>
-                <defs>
-                  <linearGradient id={`${gradPrefix}-mem`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-chart-4)" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="var(--color-chart-4)" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid className="stroke-border/70" vertical={false} />
-                <XAxis {...timeAxis(metricRows, safeHours, lang)} />
-                <YAxis domain={[0, node.mem_total]} ticks={quarters(node.mem_total)} tickFormatter={axisBytes} width={Y_WIDTH} {...AXIS} />
-                <Tooltip labelFormatter={label} formatter={(v) => bytes(Number(v))} contentStyle={TIP} />
-                <Area dataKey="mem_used" name={t("charts.tabs.mem")} stroke="var(--color-chart-4)" fill={`url(#${gradPrefix}-mem)`} {...SERIES} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Panel>
-
-          {/* Network Throughput History */}
-          <Panel
-            title={t("charts.netTitle")}
             aside={
-              <span className="inline-flex items-center gap-3">
-                <span className="inline-flex items-center gap-1 text-foreground">
-                  <span className="size-2 rounded-full bg-chart-2" />
-                  {t("charts.downlink")}
-                </span>
-                <span className="inline-flex items-center gap-1 text-foreground">
-                  <span className="size-2 rounded-full bg-chart-3" />
-                  {t("charts.uplink")}
-                </span>
+              <span className="tnum text-xs text-muted-foreground">
+                {m ? `${pair(m.mem_used, m.mem_total)} (${memPct?.toFixed(1)}%)` : bytes(node.mem_total)}
               </span>
             }
           >
-            <ResponsiveContainer>
-              <LineChart data={metricRows}>
-                <CartesianGrid className="stroke-border/70" vertical={false} />
-                <XAxis {...timeAxis(metricRows, safeHours, lang)} />
-                <YAxis domain={[0, tops.rate]} ticks={quarters(tops.rate)} tickFormatter={axisBytes} unit="/s" width={Y_WIDTH} {...AXIS} />
-                <Tooltip labelFormatter={label} formatter={(v) => rate(Number(v))} contentStyle={TIP} />
-                <Line dataKey="net_rx" name={t("charts.downlink")} stroke="var(--color-chart-2)" {...SERIES} />
-                <Line dataKey="net_tx" name={t("charts.uplink")} stroke="var(--color-chart-3)" {...SERIES} />
-              </LineChart>
-            </ResponsiveContainer>
-          </Panel>
+            <div className="h-56 w-full min-w-0 text-muted-foreground">
+              <ResponsiveContainer>
+                <AreaChart data={metricRows} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={`${gradPrefix}-mem`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={CHART_COLORS[1]} stopOpacity={0.28} />
+                      <stop offset="100%" stopColor={CHART_COLORS[1]} stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid {...CHART_GRID} />
+                  <XAxis {...timeAxis(metricRows, safeHours, lang)} />
+                  <YAxis domain={[0, node.mem_total]} ticks={quarters(node.mem_total)} tickFormatter={axisBytes} width={Y_WIDTH} {...CHART_AXIS} />
+                  <Tooltip
+                    cursor={CHART_CURSOR}
+                    content={
+                      <ChartTooltip
+                        labelFormatter={label}
+                        valueFormatter={(v) => bytes(Number(v))}
+                        subFormatter={(entry) =>
+                          node.mem_total > 0 ? `(${percent(Number(entry.value), node.mem_total).toFixed(1)}%)` : null
+                        }
+                      />
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="mem_used"
+                    name={t("charts.tabs.mem")}
+                    stroke={CHART_COLORS[1]}
+                    fill={`url(#${gradPrefix}-mem)`}
+                    activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[1] }}
+                    {...SERIES}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartPanel>
+
+          {/* Network Throughput History (Dual Gradient AreaChart) */}
+          <ChartPanel
+            title={t("charts.netTitle")}
+            aside={
+              <ChartLegend
+                items={[
+                  { label: t("charts.downlink"), color: CHART_COLORS[1], value: rate(summary.rxPeak) },
+                  { label: t("charts.uplink"), color: CHART_COLORS[2], value: rate(summary.txPeak) },
+                ]}
+              />
+            }
+          >
+            <div className="h-56 w-full min-w-0 text-muted-foreground">
+              <ResponsiveContainer>
+                <AreaChart data={metricRows} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={`${gradPrefix}-net-rx`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={CHART_COLORS[1]} stopOpacity={0.24} />
+                      <stop offset="100%" stopColor={CHART_COLORS[1]} stopOpacity={0.01} />
+                    </linearGradient>
+                    <linearGradient id={`${gradPrefix}-net-tx`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={CHART_COLORS[2]} stopOpacity={0.20} />
+                      <stop offset="100%" stopColor={CHART_COLORS[2]} stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid {...CHART_GRID} />
+                  <XAxis {...timeAxis(metricRows, safeHours, lang)} />
+                  <YAxis domain={[0, summary.rateTop]} ticks={quarters(summary.rateTop)} tickFormatter={axisBytes} unit="/s" width={Y_WIDTH} {...CHART_AXIS} />
+                  <Tooltip
+                    cursor={CHART_CURSOR}
+                    content={
+                      <ChartTooltip
+                        labelFormatter={label}
+                        valueFormatter={(v) => rate(Number(v))}
+                      />
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="net_rx"
+                    name={t("charts.downlink")}
+                    stroke={CHART_COLORS[1]}
+                    fill={`url(#${gradPrefix}-net-rx)`}
+                    activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[1] }}
+                    {...SERIES}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="net_tx"
+                    name={t("charts.uplink")}
+                    stroke={CHART_COLORS[2]}
+                    fill={`url(#${gradPrefix}-net-tx)`}
+                    activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[2] }}
+                    {...SERIES}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartPanel>
 
           {/* Disk History */}
-          <Panel
+          <ChartPanel
             title={t("charts.diskTitle")}
-            aside={m ? pair(m.disk_used, m.disk_total) : bytes(node.disk_total)}
+            aside={
+              <span className="tnum text-xs text-muted-foreground">
+                {m ? `${pair(m.disk_used, m.disk_total)} (${diskPct?.toFixed(1)}%)` : bytes(node.disk_total)}
+              </span>
+            }
           >
-            <ResponsiveContainer>
-              <AreaChart data={metricRows}>
-                <defs>
-                  <linearGradient id={`${gradPrefix}-disk`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-chart-5)" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="var(--color-chart-5)" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid className="stroke-border/70" vertical={false} />
-                <XAxis {...timeAxis(metricRows, safeHours, lang)} />
-                <YAxis domain={[0, node.disk_total]} ticks={quarters(node.disk_total)} tickFormatter={axisBytes} width={Y_WIDTH} {...AXIS} />
-                <Tooltip labelFormatter={label} formatter={(v) => bytes(Number(v))} contentStyle={TIP} />
-                <Area dataKey="disk_used" name={t("charts.tabs.disk")} stroke="var(--color-chart-5)" fill={`url(#${gradPrefix}-disk)`} {...SERIES} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Panel>
+            <div className="h-56 w-full min-w-0 text-muted-foreground">
+              <ResponsiveContainer>
+                <AreaChart data={metricRows} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={`${gradPrefix}-disk`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={CHART_COLORS[4]} stopOpacity={0.28} />
+                      <stop offset="100%" stopColor={CHART_COLORS[4]} stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid {...CHART_GRID} />
+                  <XAxis {...timeAxis(metricRows, safeHours, lang)} />
+                  <YAxis domain={[0, node.disk_total]} ticks={quarters(node.disk_total)} tickFormatter={axisBytes} width={Y_WIDTH} {...CHART_AXIS} />
+                  <Tooltip
+                    cursor={CHART_CURSOR}
+                    content={
+                      <ChartTooltip
+                        labelFormatter={label}
+                        valueFormatter={(v) => bytes(Number(v))}
+                        subFormatter={(entry) =>
+                          node.disk_total > 0 ? `(${percent(Number(entry.value), node.disk_total).toFixed(1)}%)` : null
+                        }
+                      />
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="disk_used"
+                    name={t("charts.tabs.disk")}
+                    stroke={CHART_COLORS[4]}
+                    fill={`url(#${gradPrefix}-disk)`}
+                    activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[4] }}
+                    {...SERIES}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartPanel>
         </div>
       )}
 
-      {/* 5. Detailed Hardware & Billing Specifications */}
+      {/* 5. Detailed Hardware, Runtime & Billing Specifications */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold tracking-[-0.01em] text-foreground">
+        <h2 className="text-sm font-semibold tracking-[-0.015em] text-foreground">
           {t("charts.specsSectionTitle")}
         </h2>
         <NodeOverview node={node} />

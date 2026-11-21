@@ -1,6 +1,6 @@
 /**
- * Native Arc Browser theme color engine, ported from Cra's measured Arc model
- * and extended for free multi-point color wheel selection and random palettes.
+ * Native Arc theme color engine: multi-point HSB/OKLCH palette generation,
+ * light/dark dual halves, surface hierarchy tokens, and harmonized chart colors.
  */
 
 export interface ArcPresetPage {
@@ -10,7 +10,6 @@ export interface ArcPresetPage {
 }
 
 export interface ArcThemeState {
-  enabled: boolean
   /** One to three uppercase "#RRGGBB" key colors on the wheel. */
   colors: string[]
   /** Background color intensity, 0 to 100. */
@@ -145,6 +144,11 @@ function srgbToLinear(x: number): number {
   return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
 }
 
+function linearToSrgb(x: number): number {
+  if (x <= 0.0031308) return 12.92 * x
+  return 1.055 * (x ** (1 / 2.4)) - 0.055
+}
+
 /** WCAG 2.x relative luminance for accessible foreground contrast checks. */
 export function relativeLuminance(hex: string): number {
   const [r, g, b] = hexToRgb(hex)
@@ -251,14 +255,75 @@ export function shadeHex(hex: string, lightness: number): string {
   return rgbToHex(rr + m, gg + m, bb + m)
 }
 
-function oklabL(c: [number, number, number]): number {
+function rgbToOklab(c: [number, number, number]): [number, number, number] {
   const r = srgbToLinear(c[0])
   const g = srgbToLinear(c[1])
   const b = srgbToLinear(c[2])
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
   const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
   const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
-  return 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ]
+}
+
+function oklabToLinearRgb(L: number, a: number, b: number): [number, number, number] {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b
+  const s_ = L - 0.0894841775 * a - 1.291485548 * b
+  const l = l_ * l_ * l_
+  const m = m_ * m_ * m_
+  const s = s_ * s_ * s_
+  return [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ]
+}
+
+function inSrgbGamut(rgb: [number, number, number]): boolean {
+  const eps = 1e-4
+  return (
+    rgb[0] >= -eps && rgb[0] <= 1 + eps &&
+    rgb[1] >= -eps && rgb[1] <= 1 + eps &&
+    rgb[2] >= -eps && rgb[2] <= 1 + eps
+  )
+}
+
+/** Converts a hex color into perceptual OKLCH coordinates (L in [0,1], C >= 0, H in [0,360)). */
+export function hexToOklch(hex: string): { l: number; c: number; h: number } {
+  const [l, a, b] = rgbToOklab(hexToRgb(hex))
+  const c = Math.hypot(a, b)
+  const h = c < 1e-5 ? 0 : ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360
+  return { l, c, h }
+}
+
+/** Converts OKLCH to the nearest in-gamut sRGB hex by reducing chroma smoothly when needed. */
+export function oklchToHex(l: number, c: number, h: number): string {
+  const clampedL = clamp01(l)
+  const rad = ((((h % 360) + 360) % 360) * Math.PI) / 180
+  const cosH = Math.cos(rad)
+  const sinH = Math.sin(rad)
+
+  const toLinear = (chroma: number) => oklabToLinearRgb(clampedL, chroma * cosH, chroma * sinH)
+  let rgb = toLinear(Math.max(0, c))
+  if (!inSrgbGamut(rgb)) {
+    let lo = 0
+    let hi = Math.max(0, c)
+    for (let i = 0; i < 18; i++) {
+      const mid = (lo + hi) / 2
+      if (inSrgbGamut(toLinear(mid))) lo = mid
+      else hi = mid
+    }
+    rgb = toLinear(lo)
+  }
+  return rgbToHex(linearToSrgb(clamp01(rgb[0])), linearToSrgb(clamp01(rgb[1])), linearToSrgb(clamp01(rgb[2])))
+}
+
+function oklabL(c: [number, number, number]): number {
+  return rgbToOklab(c)[0]
 }
 
 function edgeAtOklabL(hex: string, target: number): [number, number, number] {
@@ -330,7 +395,7 @@ export function tintedLightHex(accent: string): string {
   return rgbToHex(c[0], c[1], c[2])
 }
 
-/** Cra-fitted alpha for single-color solid themes: 0.19 at 0 to 0.74 at 1. */
+/** Fitted alpha for single-color solid themes: 0.19 at 0 to 0.74 at 1. */
 export function solidAlpha(intensity01: number): number {
   return 0.19 + 0.55 * clamp01(intensity01)
 }
@@ -349,7 +414,7 @@ export function presetPageOf(colors: string[]): number {
 
 /**
  * Generates a fresh native Arc-style random palette (1 to 3 colors) across the
- * full hue wheel using organic harmony strategies rather than fixed presets.
+ * full hue wheel using organic harmony strategies.
  */
 export function randomArcColors(count?: 1 | 2 | 3, rng: () => number = Math.random): string[] {
   const targetCount: 1 | 2 | 3 = count ?? (rng() < 0.15 ? 1 : rng() < 0.62 ? 2 : 3)
@@ -358,21 +423,17 @@ export function randomArcColors(count?: 1 | 2 | 3, rng: () => number = Math.rand
   const first = wheelColor(baseHue, baseSat)
   if (targetCount === 1) return [first]
 
-  // Mix analogous, split-complementary, and triadic spreads for natural Arc moods.
   const strategy = rng()
   const sign = rng() < 0.5 ? 1 : -1
   let offset1: number
   let offset2: number
   if (strategy < 0.55) {
-    // Analogous (Arc's signature silky neighbor blend)
     offset1 = sign * (28 + rng() * 34)
     offset2 = -sign * (28 + rng() * 38)
   } else if (strategy < 0.85) {
-    // Split / pastel contrast
     offset1 = sign * (55 + rng() * 45)
     offset2 = sign * (135 + rng() * 40)
   } else {
-    // Triadic glow
     offset1 = sign * (105 + rng() * 30)
     offset2 = -sign * (105 + rng() * 30)
   }
@@ -402,6 +463,73 @@ export function nextArcColor(existing: string[], rng: () => number = Math.random
   return wheelColor(h + offset, baseSat)
 }
 
+function angularDiff(a: number, b: number): number {
+  const d = Math.abs((((a - b) % 360) + 540) % 360 - 180)
+  return d
+}
+
+/**
+ * Derives a perceptually balanced 5-color chart palette from the active Arc colors.
+ * Ensures every series harmonizes with the Arc shell while maintaining >= 42 deg
+ * hue separation and consistent contrast against both light and dark cards.
+ */
+export function computeArcChartPalette(
+  rawColors: string[],
+  dark: boolean,
+): [string, string, string, string, string] {
+  const colors = parseArcColors(rawColors)
+  const parsed = colors.map(hexToOklch)
+  const chromatic = parsed.filter((c) => c.c >= 0.035)
+
+  // Editorial low-chroma fallback for Arc greyscale / near-monochrome themes.
+  if (chromatic.length === 0) {
+    const hues = [248, 166, 68, 305, 18]
+    const lSet = dark ? [0.76, 0.74, 0.78, 0.73, 0.74] : [0.54, 0.55, 0.60, 0.53, 0.56]
+    const chroma = dark ? 0.105 : 0.10
+    return hues.map((h, i) => oklchToHex(lSet[i], chroma, h)) as [string, string, string, string, string]
+  }
+
+  const chosenHues: number[] = [chromatic[0].h]
+  for (let i = 1; i < chromatic.length; i++) {
+    const candidate = chromatic[i].h
+    if (chosenHues.every((h) => angularDiff(h, candidate) >= 42)) {
+      chosenHues.push(candidate)
+    }
+  }
+
+  // Candidate hue offsets ordered to yield warm accent, cool teal, then berry/rose.
+  const baseHue = chosenHues[0]
+  const offsets = [-148, -56, 127, 68, 186, 108, -112, 38, -28, 224]
+  while (chosenHues.length < 5) {
+    let bestHue = (baseHue + 72 * chosenHues.length) % 360
+    let bestMinDist = -1
+    for (const off of offsets) {
+      const cand = ((baseHue + off) % 360 + 360) % 360
+      const minDist = Math.min(...chosenHues.map((h) => angularDiff(h, cand)))
+      if (minDist > bestMinDist) {
+        bestMinDist = minDist
+        bestHue = cand
+      }
+    }
+    chosenHues.push(bestHue)
+  }
+
+  const avgChroma = chromatic.reduce((sum, item) => sum + item.c, 0) / chromatic.length
+  const targetChroma = Math.min(0.155, Math.max(0.115, avgChroma * 0.92))
+  const lLight = [0.55, 0.57, 0.61, 0.54, 0.56]
+  const lDark = [0.75, 0.74, 0.78, 0.73, 0.74]
+
+  return chosenHues.slice(0, 5).map((hue, i) => {
+    // Yellow-green hues (75..125 deg) look brighter per L; keep lightness slightly disciplined in light mode.
+    const isWarmYellow = hue >= 72 && hue <= 122
+    const l = dark
+      ? lDark[i] + (isWarmYellow ? 0.02 : 0)
+      : lLight[i] + (isWarmYellow ? 0.03 : 0)
+    const c = isWarmYellow ? Math.min(targetChroma, 0.13) : targetChroma
+    return oklchToHex(l, c, hue)
+  }) as [string, string, string, string, string]
+}
+
 /**
  * Computes the resolved Arc visual look and multi-layered CSS gradient backdrop
  * for the current appearance (light or dark).
@@ -419,8 +547,6 @@ export function computeArcLook(
   let solid = false
 
   if (dark) {
-    // Arc dark half: key hue at HSL L=0.064 blended over Arc's #2B2632 base.
-    // Intensity scales tint richness centered on Arc's 27% at intensity=0.8.
     const mixWeight = 0.07 + 0.25 * intensity
     const baseDark = "#2B2632"
     const deepNeutral = "#17161D"
@@ -430,7 +556,6 @@ export function computeArcLook(
       const darkKey = shadeHex(c, 0.064)
       const [kr, kg, kb] = hexToRgb(darkKey)
       const [br, bg, bb] = hexToRgb(anchorBase)
-      // Also lift a subtle glow from the hue at slightly higher lightness for vibrant gradients.
       const glow = shadeHex(c, 0.22)
       const [gr, gg, gb] = hexToRgb(glow)
       const r = br * (1 - mixWeight) + kr * mixWeight + gr * (0.14 * intensity)
@@ -456,7 +581,6 @@ export function computeArcLook(
   let backgroundImage: string
 
   if (colors.length === 1) {
-    // Gentle single-hue Arc ambient glow
     const glow = dark
       ? hexToRgba(midToneHex(colors[0]), 0.12 * intensity)
       : hexToRgba(stops[0], 0.55)
@@ -465,7 +589,6 @@ export function computeArcLook(
       `linear-gradient(180deg, ${stops[0]} 0%, ${stops[stops.length - 1]} 100%)`,
     ].join(", ")
   } else if (colors.length === 2) {
-    // Two-color silky Arc gradient with subtle spatial blooms anchored by wheel angle
     const p0 = knobPosition(colors[0], 1)
     const p1 = knobPosition(colors[1], 1)
     const angle = Math.round(((Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI + 450) % 360)
@@ -477,10 +600,8 @@ export function computeArcLook(
       `linear-gradient(${angle}deg, ${stops[0]} 0%, ${stops[1]} 100%)`,
     ].join(", ")
   } else {
-    // Three-color native Arc mesh diffusion: each dot projects a soft glow on the canvas
     const pos = colors.map((c, idx) => {
       const p = knobPosition(c, 1)
-      // Spread points cleanly across viewport corners while responding to wheel placement
       const x = Math.round(50 + p.x * 38 + (idx === 0 ? -12 : idx === 1 ? 14 : 0))
       const y = Math.round(50 + p.y * 38 + (idx === 0 ? -10 : idx === 2 ? 12 : 0))
       return {
@@ -510,9 +631,9 @@ export function computeArcLook(
 }
 
 /**
- * Derives shadcn/ui semantic CSS token values from an Arc theme so primary
- * buttons, rings, and frosted card tints harmonize with the Arc canvas while
- * preserving crisp contrast for tables, badges, and charts.
+ * Derives the complete semantic CSS token set from an Arc theme so the sidebar,
+ * floating stage, elevated cards, status indicators, and all telemetry charts
+ * form one cohesive color system in both light and dark modes.
  */
 export function computeArcTokens(
   rawColors: string[],
@@ -522,20 +643,19 @@ export function computeArcTokens(
   const colors = parseArcColors(rawColors)
   const look = computeArcLook(colors, intensityPercent, dark)
   const primarySeed = colors[0]
+  const [chart1, chart2, chart3, chart4, chart5] = computeArcChartPalette(colors, dark)
 
   if (dark) {
     const primary = midToneHex(primarySeed)
     const primaryFg = readableForeground(primary)
-    const stage = mixHex("#1B1C20", look.stops[0], 0.14)
-    const cardTint = mixHex("#222329", look.stops[0], 0.18)
-    const popoverTint = mixHex("#202028", look.stops[0], 0.24)
-    const secondary = mixHex("#292A32", look.stops[0], 0.22)
-    const muted = mixHex("#24252D", look.stops[0], 0.18)
-    const accentBg = mixHex("#2E2F3B", primary, 0.14)
-    const border = mixHex("#343642", primary, 0.12)
-    const input = mixHex("#3F4150", primary, 0.14)
-    const fg = mixHex("#EAEBF0", tintedLightHex(primarySeed), 0.1)
-    const mutedFg = mixHex("#9EA0AE", tintedLightHex(primarySeed), 0.1)
+    const stage = mixHex("#15161B", look.stops[0], 0.16)
+    const cardTint = mixHex("#1D1F26", look.stops[0], 0.20)
+    const popoverTint = mixHex("#20222B", look.stops[0], 0.24)
+    const secondary = mixHex("#262832", look.stops[0], 0.22)
+    const muted = mixHex("#21232C", look.stops[0], 0.18)
+    const accentBg = mixHex("#2B2D3A", primary, 0.15)
+    const fg = mixHex("#ECEEF3", tintedLightHex(primarySeed), 0.10)
+    const mutedFg = mixHex("#9A9EAE", tintedLightHex(primarySeed), 0.10)
 
     return {
       background: look.backgroundColor,
@@ -553,10 +673,16 @@ export function computeArcTokens(
       "muted-foreground": mutedFg,
       accent: accentBg,
       "accent-foreground": fg,
-      destructive: "oklch(0.65 0.20 25)",
+      destructive: "#F05A5B",
       "destructive-foreground": "#FFFFFF",
-      border,
-      input,
+      success: "#34C785",
+      "success-foreground": "#0E1A14",
+      warning: "#F0B240",
+      "warning-foreground": "#1A140A",
+      info: "#5FA0FA",
+      "info-foreground": "#0E1624",
+      border: "rgba(255, 255, 255, 0.095)",
+      input: "rgba(255, 255, 255, 0.14)",
       ring: primary,
       "arc-chrome-fg": "rgba(255, 255, 255, 0.94)",
       "arc-chrome-muted": "rgba(255, 255, 255, 0.72)",
@@ -564,28 +690,26 @@ export function computeArcTokens(
       "arc-chrome-hover": "rgba(255, 255, 255, 0.08)",
       "arc-chrome-field": "rgba(255, 255, 255, 0.09)",
       "arc-chrome-border": "rgba(255, 255, 255, 0.12)",
-      "chart-1": primary,
-      "chart-2": "oklch(0.72 0.14 162)",
-      "chart-3": "oklch(0.78 0.14 78)",
-      "chart-4": "oklch(0.70 0.14 252)",
-      "chart-5": "oklch(0.72 0.15 345)",
+      "chart-1": chart1,
+      "chart-2": chart2,
+      "chart-3": chart3,
+      "chart-4": chart4,
+      "chart-5": chart5,
     }
   }
 
-  // Light mode: crisp native Arc paper stage + ink-tinted chrome
+  // Light mode: softly Arc-tinted paper stage + crisp elevated white cards + ink-tinted hairlines.
   const primary = toolbarHex(look.accent, false)
   const primaryFg = readableForeground(primary)
   const ink = inkHex(look.accent)
-  const fg = mixHex("#18181D", ink, 0.35)
-  const mutedFg = mixHex("#60626E", ink, 0.2)
-  const stage = mixHex("#FFFFFF", look.stops[0], 0.03)
-  const cardTint = mixHex("#FAFBFD", look.stops[0], 0.06)
-  const popoverTint = mixHex("#FFFFFF", look.stops[0], 0.04)
-  const secondary = mixHex("#F2F3F6", look.stops[0], 0.18)
-  const muted = mixHex("#F0F1F5", look.stops[0], 0.2)
-  const accentBg = mixHex("#ECEEF3", look.stops[0], 0.24)
-  const border = mixHex("#E2E4EA", ink, 0.1)
-  const input = mixHex("#D2D5DE", ink, 0.12)
+  const fg = mixHex("#181920", ink, 0.35)
+  const mutedFg = mixHex("#5F6370", ink, 0.22)
+  const stage = mixHex("#F6F7FA", look.stops[0], 0.055)
+  const cardTint = mixHex("#FFFFFF", look.stops[0], 0.015)
+  const popoverTint = mixHex("#FFFFFF", look.stops[0], 0.02)
+  const secondary = mixHex("#ECEEF3", look.stops[0], 0.15)
+  const muted = mixHex("#EEF0F5", look.stops[0], 0.16)
+  const accentBg = mixHex("#E8EBF1", look.stops[0], 0.20)
 
   return {
     background: look.backgroundColor,
@@ -603,10 +727,16 @@ export function computeArcTokens(
     "muted-foreground": mutedFg,
     accent: accentBg,
     "accent-foreground": fg,
-    destructive: "oklch(0.577 0.22 27)",
+    destructive: "#D9383A",
     "destructive-foreground": "#FFFFFF",
-    border,
-    input,
+    success: "#168A5B",
+    "success-foreground": "#FFFFFF",
+    warning: "#C27803",
+    "warning-foreground": "#FFFFFF",
+    info: "#2563EB",
+    "info-foreground": "#FFFFFF",
+    border: hexToRgba(ink, 0.105),
+    input: hexToRgba(ink, 0.16),
     ring: primary,
     "arc-chrome-fg": ink,
     "arc-chrome-muted": hexToRgba(ink, 0.72),
@@ -614,24 +744,10 @@ export function computeArcTokens(
     "arc-chrome-hover": "rgba(0, 0, 0, 0.055)",
     "arc-chrome-field": "rgba(255, 255, 255, 0.48)",
     "arc-chrome-border": "rgba(0, 0, 0, 0.09)",
-    "chart-1": primary,
-    "chart-2": "oklch(0.60 0.16 160)",
-    "chart-3": "oklch(0.68 0.15 72)",
-    "chart-4": "oklch(0.56 0.15 255)",
-    "chart-5": "oklch(0.60 0.18 350)",
-  }
-}
-
-/** Companion Arc shell chrome tokens when using classic tweakcn solid presets. */
-export function classicShellTokens(presetVars: Record<string, string>, dark: boolean): Record<string, string> {
-  return {
-    ...presetVars,
-    stage: presetVars.card ?? presetVars.background,
-    "arc-chrome-fg": presetVars.foreground,
-    "arc-chrome-muted": presetVars["muted-foreground"],
-    "arc-chrome-glass": dark ? "rgba(255, 255, 255, 0.10)" : "rgba(255, 255, 255, 0.82)",
-    "arc-chrome-hover": dark ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.045)",
-    "arc-chrome-field": dark ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.04)",
-    "arc-chrome-border": presetVars.border,
+    "chart-1": chart1,
+    "chart-2": chart2,
+    "chart-3": chart3,
+    "chart-4": chart4,
+    "chart-5": chart5,
   }
 }

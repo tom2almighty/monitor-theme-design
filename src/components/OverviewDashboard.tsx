@@ -1,40 +1,14 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import {
-  Activity,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpRight,
-  Cpu,
-  HardDrive,
-  LayoutGrid,
-  MemoryStick,
-  Search,
-  Table2,
-} from "lucide-react"
+import { Activity, ArrowDown, ArrowUp, Cpu, HardDrive, MemoryStick } from "lucide-react"
 
-import { Dot, Flag, Meter, OsIcon } from "@/components/NodeMarks"
+import { Meter } from "@/components/NodeMarks"
 import type { LiveBandwidthSample } from "@/components/OverviewCharts"
-import { ServerTable } from "@/components/ServerTable"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Node } from "@/lib/api"
-import {
-  bytes,
-  compact,
-  daysUntil,
-  distro,
-  duration,
-  FOREVER,
-  monthUsage,
-  pair,
-  percent,
-} from "@/lib/format"
-import { usePref } from "@/lib/prefs"
-import { Link } from "@/lib/route"
+import { bytes, compact, monthUsage, pair, percent } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 const OverviewCharts = lazy(() =>
@@ -75,155 +49,15 @@ function KpiTile({
   )
 }
 
-function NodeBentoCard({
-  node,
-  prefetchDetail,
-}: {
-  node: Node
-  prefetchDetail: () => void
-}) {
-  const { t, i18n } = useTranslation()
-  const lang = i18n.resolvedLanguage ?? i18n.language
-  const m = node.online ? node.metrics : null
-  const cpuPct = m ? m.cpu : null
-  const memPct = m ? percent(m.mem_used, m.mem_total) : null
-  const diskPct = m ? percent(m.disk_used, m.disk_total) : null
-  const used = monthUsage(node)
-  const days = node.expires_in !== undefined ? node.expires_in : daysUntil(node.expires_at)
-
-  return (
-    <Link
-      href={`/node/${node.id}`}
-      onPointerEnter={prefetchDetail}
-      onFocus={prefetchDetail}
-      className="group block min-w-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <Card className="h-full min-w-0 gap-3.5 p-4 transition-colors group-hover:border-primary/45 group-hover:bg-accent/20">
-        {/* Header: status dot, flag, name, subtle meta badges */}
-        <div className="flex min-w-0 items-start justify-between gap-2">
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <Dot node={node} className="size-2" />
-              {node.country ? <Flag code={node.country} showCode={false} className="shrink-0" /> : null}
-              <h3 className="min-w-0 truncate text-sm font-semibold tracking-[-0.01em] text-foreground transition-colors group-hover:text-primary">
-                {node.name}
-              </h3>
-            </div>
-            <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-              <OsIcon os={node.os} className="size-3" />
-              <span className="truncate">{distro(node.os) || "—"}</span>
-              {node.cpu_cores > 0 && (
-                <>
-                  <span className="opacity-50">·</span>
-                  <span className="tnum shrink-0">{node.cpu_cores}C</span>
-                </>
-              )}
-              {node.mem_total > 0 && (
-                <>
-                  <span className="opacity-50">/</span>
-                  <span className="tnum shrink-0">{compact(node.mem_total)}</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1.5">
-            {days !== null && days < 0 && (
-              <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">
-                {t("table.expiry.expired")}
-              </Badge>
-            )}
-            {days !== null && days >= 0 && days <= 7 && (
-              <Badge variant="warning" className="px-1.5 py-0 text-[10px]">
-                {t("table.expiry.days", { days })}
-              </Badge>
-            )}
-            <ArrowUpRight className="size-3.5 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary motion-reduce:transition-none" />
-          </div>
-        </div>
-
-        {/* 3-column live resource meters */}
-        <div className="grid grid-cols-3 gap-2.5">
-          <div className="min-w-0 space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{t("charts.tabs.cpu")}</span>
-              <span className="tnum font-medium text-foreground">
-                {cpuPct !== null ? `${cpuPct.toFixed(0)}%` : "—"}
-              </span>
-            </div>
-            <Meter pct={cpuPct} />
-          </div>
-
-          <div className="min-w-0 space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{t("charts.tabs.mem")}</span>
-              <span className="tnum font-medium text-foreground">
-                {memPct !== null ? `${memPct.toFixed(0)}%` : "—"}
-              </span>
-            </div>
-            <Meter pct={memPct} />
-          </div>
-
-          <div className="min-w-0 space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{t("charts.tabs.disk")}</span>
-              <span className="tnum font-medium text-foreground">
-                {diskPct !== null ? `${diskPct.toFixed(0)}%` : "—"}
-              </span>
-            </div>
-            <Meter pct={diskPct} />
-          </div>
-        </div>
-
-        {/* Footer: live speed + uptime & period traffic */}
-        <div className="flex min-w-0 items-center justify-between gap-2 border-t border-border/50 pt-2.5 text-xs text-muted-foreground">
-          <div className="tnum flex min-w-0 items-center gap-2">
-            {m ? (
-              <>
-                <span className="inline-flex items-center gap-0.5 text-foreground">
-                  <ArrowDown className="size-3 shrink-0 text-success" />
-                  {compact(m.net_rx)}/s
-                </span>
-                <span className="inline-flex items-center gap-0.5 text-foreground">
-                  <ArrowUp className="size-3 shrink-0 text-info" />
-                  {compact(m.net_tx)}/s
-                </span>
-              </>
-            ) : (
-              <span>{node.online ? t("status.waitingReport") : t("status.offline")}</span>
-            )}
-          </div>
-
-          <div className="tnum flex shrink-0 items-center gap-2">
-            {m && (
-              <span className="hidden sm:inline">{duration(m.uptime, lang)}</span>
-            )}
-            <span className="truncate font-medium text-foreground/85">
-              {compact(used)} / {node.traffic_limit > 0 ? compact(node.traffic_limit) : FOREVER}
-            </span>
-          </div>
-        </div>
-      </Card>
-    </Link>
-  )
-}
-
 /**
  * Redesigned Arc Fleet Telemetry Overview (`/`):
- * group filter bar + 4 KPI hero tiles + 4 live Recharts analytics panels
- * + Arc Bento node cards with optional compact table toggle.
+ * group filter bar + 4 KPI hero tiles + 4 live Recharts analytics panels.
+ * Node switching lives in the left sidebar, so the page carries only the
+ * aggregate telemetry and no second node list.
  */
-export function OverviewDashboard({
-  nodes,
-  prefetchDetail,
-}: {
-  nodes: Node[]
-  prefetchDetail: () => void
-}) {
+export function OverviewDashboard({ nodes }: { nodes: Node[] }) {
   const { t } = useTranslation()
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
-  const [query, setQuery] = useState("")
-  const [viewMode, setViewMode] = usePref<string>("overview-view", "cards")
   const [bwSeries, setBwSeries] = useState<{ scope: string | null; samples: LiveBandwidthSample[] }>({
     scope: null,
     samples: [],
@@ -304,20 +138,6 @@ export function OverviewDashboard({
     if (existing.length > 0) return existing
     return [{ ts: Date.now(), rx: stats.netRx, tx: stats.netTx }]
   }, [bwSeries, selectedGroup, stats.netRx, stats.netTx])
-
-  const filteredNodes = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return scopedNodes
-    return scopedNodes.filter((n) => `${n.name} ${n.country} ${n.os} ${n.group ?? ""}`.toLowerCase().includes(q))
-  }, [scopedNodes, query])
-
-  const viewOptions = useMemo(
-    () => [
-      { value: "cards", label: <LayoutGrid className="size-3.5" />, title: t("overview.viewCards") },
-      { value: "table", label: <Table2 className="size-3.5" />, title: t("overview.viewTable") },
-    ],
-    [t],
-  )
 
   return (
     <div className="min-w-0 space-y-5">
@@ -445,56 +265,6 @@ export function OverviewDashboard({
       <Suspense fallback={<ChartsSkeleton />}>
         <OverviewCharts nodes={scopedNodes} bandwidthHistory={liveBandwidth} />
       </Suspense>
-
-      {/* Node Directory: Arc Bento Cards (default) or Compact Table */}
-      <section className="space-y-3.5">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold tracking-[-0.01em] text-foreground">
-              {t("overview.directory.title")}
-            </h2>
-            <Badge variant="secondary" className="tnum font-normal">
-              {filteredNodes.length !== scopedNodes.length
-                ? `${filteredNodes.length} / ${scopedNodes.length}`
-                : scopedNodes.length}
-            </Badge>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {viewMode === "cards" && (
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t("table.searchPlaceholder")}
-                  aria-label={t("table.searchPlaceholder")}
-                  className="h-8 w-40 rounded-lg bg-card pl-8 text-xs sm:w-52"
-                />
-              </div>
-            )}
-            <Segmented
-              value={viewMode === "table" ? "table" : "cards"}
-              onChange={setViewMode}
-              options={viewOptions}
-              label={t("overview.viewModeLabel")}
-            />
-          </div>
-        </div>
-
-        {viewMode === "table" ? (
-          <ServerTable nodes={scopedNodes} />
-        ) : filteredNodes.length === 0 ? (
-          <Card className="py-14 text-center text-sm text-muted-foreground">{t("table.empty")}</Card>
-        ) : (
-          <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
-            {filteredNodes.map((node) => (
-              <NodeBentoCard key={node.id} node={node} prefetchDetail={prefetchDetail} />
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   )
 }
@@ -523,11 +293,6 @@ export function OverviewSkeleton() {
         ))}
       </div>
       <ChartsSkeleton />
-      <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <Skeleton key={i} className="h-40 rounded-xl" />
-        ))}
-      </div>
     </div>
   )
 }

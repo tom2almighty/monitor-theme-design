@@ -18,8 +18,7 @@
     "login": "Sign in",
     "themeCredit": "Theme {{name}} · {{author}}",
     "poweredBy": "Powered by",
-    "switchLanguage": "Switch language (Current: English)",
-    "languageShort": "中"
+    "switchLanguage": "Switch language (Current: English)"
   },
   "status": {
     "online": "Online",
@@ -107,46 +106,7 @@
       "default": "tweakcn neutral default"
     }
   },
-  "table": {
-    "title": "Servers",
-    "nodeCount": "{{count}} nodes",
-    "nodeCountFiltered": "{{shown}} / {{total}} nodes",
-    "searchPlaceholder": "Filter servers…",
-    "onlineTitle": "Online / Total nodes",
-    "speed": "Speed",
-    "speedTitle": "Combined live download & upload speed of online nodes",
-    "month": "Monthly",
-    "monthTitle": "Combined period download & upload traffic",
-    "total": "Total",
-    "totalTitle": "Combined lifetime download & upload traffic",
-    "empty": "No matching servers",
-    "cols": {
-      "status": "Status",
-      "name": "Name",
-      "location": "Region",
-      "os": "OS",
-      "uptime": "Uptime",
-      "expiry": "Expiry",
-      "load": "Load",
-      "speed": "Speed",
-      "cpu": "CPU",
-      "mem": "RAM",
-      "disk": "Disk",
-      "traffic": "Traffic"
-    },
-    "expiry": {
-      "never": "Never expires",
-      "expired": "Expired",
-      "days": "{{days}}d"
-    },
-    "trafficTitle": "Period used {{usage}}",
-    "trafficUnlimited": "{{used}} · Unlimited"
-  },
   "details": {
-    "viewLabel": "Detail view",
-    "tabLatency": "Latency",
-    "tabOverview": "Overview",
-    "notDeployed": "Not connected yet. Generate and run the install command from the admin panel.",
     "system": {
       "title": "System",
       "os": "OS",
@@ -157,7 +117,6 @@
     },
     "resources": {
       "title": "Resources",
-      "historyLink": "Charts",
       "cpu": "CPU",
       "mem": "Memory",
       "swap": "Swap",
@@ -204,11 +163,8 @@
   },
   "overview": {
     "title": "Fleet Telemetry",
-    "subtitle": "Live cluster health, resource pressure, and bandwidth across your nodes. Click any bar or card to inspect.",
+    "subtitle": "Live cluster health, resource pressure, and bandwidth across your nodes. Click any bar to inspect.",
     "livePulse": "Live",
-    "viewModeLabel": "Node layout mode",
-    "viewCards": "Cards",
-    "viewTable": "Table",
     "kpi": {
       "fleetHealth": "Fleet Health",
       "onlineRate": "{{rate}}% online",
@@ -226,6 +182,7 @@
       "liveBandwidthDesc": "Rolling {{seconds}}s aggregate downlink & uplink from live snapshots",
       "trafficTopTitle": "Period Traffic Leaders",
       "trafficTopDesc": "Top {{count}} nodes by current billing period transfer",
+      "trafficUsed": "Period traffic",
       "regionTitle": "Regional Footprint",
       "regionDesc": "Node distribution & availability by region",
       "unknownRegion": "Unknown",
@@ -233,15 +190,9 @@
       "noTrafficData": "No traffic recorded yet",
       "collectingSamples": "Collecting live telemetry…",
       "nodesUnit": "{{count}}"
-    },
-    "directory": {
-      "title": "Nodes",
-      "openDetail": "Open telemetry",
-      "uptimeShort": "Up {{time}}"
     }
   },
   "charts": {
-    "label": "Chart",
     "rangeLabel": "Time range",
     "loadFailed": "Failed to load history: {{message}}",
     "noHistory": "No metrics recorded in this window",
@@ -256,9 +207,7 @@
     "tabs": {
       "cpu": "CPU",
       "mem": "RAM",
-      "net": "Network",
-      "disk": "Disk",
-      "ping": "Latency"
+      "disk": "Disk"
     },
     "ranges": {
       "1": "1h",
@@ -274,8 +223,6 @@
     "uplink": "Up",
     "diskTitle": "Disk Usage",
     "latencyTitle": "Latency Probes",
-    "liveSectionTitle": "Live Snapshot",
-    "historySectionTitle": "Historical Telemetry",
     "specsSectionTitle": "Hardware & Billing"
   }
 }

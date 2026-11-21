@@ -75,19 +75,19 @@ function NodeRow({
       onFocus={prefetchDetail}
       title={`${node.name}${node.country ? ` · ${node.country.toUpperCase()}` : ""}`}
       className={cn(
-        "group flex h-8 min-w-0 items-center gap-2 rounded-lg px-2 text-xs leading-5 tracking-[-0.005em] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group flex h-8.5 min-w-0 items-center gap-2 rounded-lg px-2 text-sm leading-5 tracking-[-0.01em] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
-          ? "bg-(--arc-chrome-glass) font-medium text-(--arc-chrome-fg) shadow-2xs"
-          : "font-normal text-(--arc-chrome-fg)/88 hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg)",
+          ? "bg-(--arc-chrome-glass) font-semibold text-(--arc-chrome-fg) shadow-2xs"
+          : "font-medium text-(--arc-chrome-fg)/92 hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg)",
       )}
     >
       <Dot node={node} className="size-2" />
-      {node.country ? <Flag code={node.country} showCode={false} className="shrink-0" /> : null}
+      {node.country ? <Flag code={node.country} className="shrink-0" /> : null}
       <span className="min-w-0 flex-1 truncate">{node.name}</span>
       <span
         className={cn(
-          "tnum shrink-0 text-xs font-normal",
-          node.online ? "text-(--arc-chrome-muted)" : "text-destructive/90",
+          "tnum shrink-0 text-xs font-semibold",
+          node.online ? "text-(--arc-chrome-muted)" : "text-destructive",
         )}
       >
         {statusText}
@@ -252,9 +252,9 @@ export function ArcSidebar({
         >
           <div className="flex items-center justify-between">
             <LayoutGrid className="size-3.5 text-primary" />
-            <span className="tnum text-xs font-medium text-(--arc-chrome-muted)">{nodes.length}</span>
+            <span className="tnum text-xs font-semibold text-(--arc-chrome-muted)">{nodes.length}</span>
           </div>
-          <span className="truncate text-xs font-medium tracking-[-0.01em]">{t("sidebar.overview")}</span>
+          <span className="truncate text-xs font-semibold tracking-[-0.01em]">{t("sidebar.overview")}</span>
         </Link>
 
         <button
@@ -271,11 +271,11 @@ export function ArcSidebar({
         >
           <div className="flex items-center justify-between gap-1">
             <Activity className="size-3.5 text-success" />
-            <span className="tnum text-xs font-medium text-(--arc-chrome-muted)">
+            <span className="tnum text-xs font-semibold text-(--arc-chrome-muted)">
               {onlineCount}/{nodes.length}
             </span>
           </div>
-          <span className="tnum truncate text-xs font-medium tracking-[-0.01em] text-(--arc-chrome-fg)/90">
+          <span className="tnum truncate text-xs font-semibold tracking-[-0.01em] text-(--arc-chrome-fg)/90">
             {onlineOnly ? t("sidebar.onlineOnly") : `↓ ${compact(totalSpeed.rx)}/s`}
           </span>
         </button>
@@ -321,7 +321,7 @@ export function ArcSidebar({
                   type="button"
                   onClick={() => toggleFolder(folder.key)}
                   aria-expanded={isOpen}
-                  className="flex h-7.5 w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-left text-xs font-medium tracking-[-0.01em] text-(--arc-chrome-muted) transition-colors hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg) outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                  className="flex h-7.5 w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-left text-xs font-semibold tracking-[-0.01em] text-(--arc-chrome-fg)/72 transition-colors hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg) outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                 >
                   <ChevronRight
                     className={cn(
@@ -335,7 +335,7 @@ export function ArcSidebar({
                     <Folder className="size-3.5 shrink-0 text-(--arc-chrome-muted)" />
                   )}
                   <span className="min-w-0 flex-1 truncate">{folder.label}</span>
-                  <span className="tnum shrink-0 text-xs font-normal text-(--arc-chrome-muted)/85">
+                  <span className="tnum shrink-0 text-xs font-medium text-(--arc-chrome-muted)">
                     {folderOnline}/{folder.nodes.length}
                   </span>
                 </button>

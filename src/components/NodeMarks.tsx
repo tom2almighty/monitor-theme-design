@@ -8,10 +8,8 @@ import {
 import type { Node } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-// The small marks a node is drawn with wherever it appears: the table row, the
-// row it expands into, the chart page's picker and its heading. Held apart from
-// the table so the expanded row can import them without importing the table
-// that renders it.
+// The small marks a node is drawn with wherever it appears: the sidebar rows,
+// the detail page's heading and the overview tiles.
 
 // Regional indicator conversion: turns any two-letter ISO-3166-1 alpha-2 code
 // (such as "US", "HK", "JP", "EU") into its Unicode flag emoji.
@@ -61,7 +59,7 @@ export function Dot({ node, className }: { node: Node; className?: string }) {
   )
 }
 
-export function Flag({ code, className, showCode = true }: { code: string; className?: string; showCode?: boolean }) {
+export function Flag({ code, className }: { code: string; className?: string }) {
   if (!code) return <span className="text-muted-foreground">—</span>
   const emoji = countryEmoji(code)
   return (
@@ -71,7 +69,6 @@ export function Flag({ code, className, showCode = true }: { code: string; class
           {emoji}
         </span>
       )}
-      {showCode && <span className="@max-3xl:hidden font-mono text-[11px] leading-none uppercase">{code}</span>}
     </span>
   )
 }
@@ -130,36 +127,5 @@ export function Meter({
         {children}
       </div>
     </div>
-  )
-}
-
-// The widest form each formatter writes, in `ch`, measured with tabular figures.
-// M is the widest unit letter, so each is measured in megabytes rather than the
-// gigabytes a reading is more often in: `compact` spans "0B" to "1023M", that is
-// 2.2 to 5.49; `bytes` reaches 7.19 at "1023 MB"; `rate` 10.09 at "1023.0 MB/s".
-// Rounded up, since other UI fonts are a few percent wider than the one these
-// were measured in.
-export const SLOT = { compact: 5.6, bytes: 7.3, rate: 10.2 }
-
-/**
- * A figure that changes on every push, held in a slot wide enough for the widest
- * form it can take, so a node moving from 19K/s to 8.19K/s leaves the rest of the
- * line where it was. Right-aligned, so the unit keeps its place and the digits
- * grow towards the arrow instead.
- *
- * `ch` is the width of a digit under the tabular figures this selects, so a slot
- * follows whatever size it is drawn at, down to the 10px the table uses on a
- * phone. The width travels as a custom property rather than `min-width` itself,
- * which is what allows a caller to drop the reservation where the column is too
- * narrow to hold it: an inline style would outrank the class that does so.
- */
-export function Num({ ch, className, children }: { ch: number; className?: string; children: ReactNode }) {
-  return (
-    <span
-      className={cn("tnum inline-block min-w-(--slot) text-right align-middle", className)}
-      style={{ "--slot": `${ch}ch` } as CSSProperties}
-    >
-      {children}
-    </span>
   )
 }

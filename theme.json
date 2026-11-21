@@ -2,7 +2,7 @@
   "name": "monitor-theme-design",
   "short": "Design",
   "description": "Fork 自 stqfdyr/monitor-theme-serverstatus，融合原生 Arc 自由调色背景、tweakcn 精选配色与磨砂颗粒质感的现代化监控主题，支持深浅模式、实时换肤与无级质感微调",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "author": "tom2almighty",
   "url": "https://github.com/tom2almighty/monitor-theme-design",
   "config": [
@@ -20,6 +20,6 @@
       { "value": "default", "label": "shadcn/ui (原生岩灰)" }
     ] },
     { "key": "grain_percent", "type": "number", "label": "默认颗粒强度 (%)", "default": 18, "min": 0, "max": 100, "help": "Arc 胶片颗粒强度（0-100%）" },
-    { "key": "frosted_percent", "type": "number", "label": "默认磨砂透光度 (%)", "default": 6, "min": 0, "max": 100, "help": "右侧主画布磨砂半透明度（0% 为原生 Arc 纯净纸面，调高呈通透玻璃质感）" }
+    { "key": "frosted_percent", "type": "number", "label": "默认磨砂透光度 (%)", "default": 0, "min": 0, "max": 100, "help": "右侧主画布磨砂半透明度；0（默认）为原生 Arc 纯净纸面，调高呈通透玻璃质感" }
   ]
 }

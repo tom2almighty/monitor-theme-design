@@ -1,24 +1,14 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react"
+import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ChartLine } from "lucide-react"
 
-import { deployed, Meter, OsIcon } from "@/components/NodeMarks"
+import { Meter, OsIcon } from "@/components/NodeMarks"
 import { Badge } from "@/components/ui/badge"
-import { Segmented } from "@/components/ui/segmented"
-import { Skeleton } from "@/components/ui/skeleton"
 import type { Node } from "@/lib/api"
 import {
   bytes, cpuName, daysUntil, dayUsage, FOREVER, money, monthUsage, osName, pair, percent, periodStart,
   uptime, virtName,
 } from "@/lib/format"
-import { fetchHistory, latencyWindow } from "@/lib/history"
-import { knownPing } from "@/lib/pings"
-import { Link } from "@/lib/route"
 import { cn } from "@/lib/utils"
-
-// From the chart page's chunk, which App warms at start, so the table itself
-// carries no recharts.
-const Latency = lazy(() => import("@/components/NodeDetail").then((m) => ({ default: m.Latency })))
 
 type TrafficModeKey = "sum" | "up" | "down" | "max"
 type BillingCycleKey = "monthly" | "quarterly" | "semiannual" | "yearly" | "biennial" | "triennial" | "once"
@@ -27,7 +17,7 @@ const TRAFFIC_MODE_KEYS = new Set<string>(["sum", "up", "down", "max"])
 const BILLING_CYCLE_KEYS = new Set<string>(["monthly", "quarterly", "semiannual", "yearly", "biennial", "triennial", "once"])
 
 /**
- * One topic per card, on the shaded strip the open row lays down.
+ * One topic per card.
  */
 function Block({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
@@ -66,7 +56,7 @@ function PeriodMeter({ used, today, limit, title }: { used: number; today: numbe
 }
 
 /** The four cards: the machine, what it is doing, what it has moved, and its term. */
-export function NodeOverview({ node, showHistoryLink = true }: { node: Node; showHistoryLink?: boolean }) {
+export function NodeOverview({ node }: { node: Node }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.resolvedLanguage ?? i18n.language
   const m = node.online ? node.metrics : null
@@ -131,17 +121,7 @@ export function NodeOverview({ node, showHistoryLink = true }: { node: Node; sho
         </Line>
       </Block>
 
-      <Block
-        title={t("details.resources.title")}
-        aside={
-          showHistoryLink ? (
-            <Link href={`/node/${node.id}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-              <ChartLine className="size-3" />
-              {t("details.resources.historyLink")}
-            </Link>
-          ) : null
-        }
-      >
+      <Block title={t("details.resources.title")}>
         {m && <Line label={t("details.resources.cpu")}>{m.cpu.toFixed(1)}%</Line>}
         <Line label={t("details.resources.mem")}>{m ? usage(m.mem_used, m.mem_total) : bytes(node.mem_total)}</Line>
         <Line label={t("details.resources.swap")}>
@@ -196,57 +176,6 @@ export function NodeOverview({ node, showHistoryLink = true }: { node: Node; sho
           </Line>
         )}
       </Block>
-    </div>
-  )
-}
-
-/**
- * What a row opens into: two tabs, the round trips to the node first and the
- * four cards of what it is behind them.
- */
-export function RowDetails({ node }: { node: Node }) {
-  const { t } = useTranslation()
-  const [learned, setLearned] = useState<boolean | null>(null)
-  const has = learned ?? knownPing(node.id)
-  const [tab, setTab] = useState<string | null>(null)
-  const shown = has === true ? tab ?? "latency" : "overview"
-  const ready = deployed(node)
-
-  const tabs = useMemo(
-    () => [
-      { value: "latency", label: t("details.tabLatency") },
-      { value: "overview", label: t("details.tabOverview") },
-    ],
-    [t],
-  )
-
-  useEffect(() => {
-    if (ready) void fetchHistory(node.id, latencyWindow(), "ping")
-  }, [node.id, ready])
-
-  if (!ready) {
-    return <p className="px-4 py-4 text-sm text-muted-foreground">{t("details.notDeployed")}</p>
-  }
-
-  return (
-    <div className="space-y-3.5 px-4 py-3.5 text-xs @max-3xl:px-2">
-      {has === true && (
-        <div className="flex items-center">
-          <Segmented value={shown} onChange={setTab} options={tabs} label={t("details.viewLabel")} />
-        </div>
-      )}
-
-      {has === undefined && <Skeleton className="h-[320px] rounded-lg" />}
-
-      <div hidden={shown !== "latency"}>
-        <Suspense fallback={has === true ? <Skeleton className="h-[320px] rounded-lg" /> : null}>
-          <Latency id={node.id} card className="h-[280px] @max-3xl:h-[220px]" onKnown={setLearned} />
-        </Suspense>
-      </div>
-
-      <div hidden={shown !== "overview" || has === undefined}>
-        <NodeOverview node={node} />
-      </div>
     </div>
   )
 }

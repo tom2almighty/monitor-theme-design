@@ -146,7 +146,7 @@ function readManifestDefaults(): AppearanceValues {
     arcIntensity: clampPercent(Number(manifestDefault("arc_intensity")), DEFAULT_ARC_INTENSITY),
     themeId,
     grainPercent: clampPercent(Number(manifestDefault("grain_percent")), 18),
-    frostedPercent: clampPercent(Number(manifestDefault("frosted_percent")), 6),
+    frostedPercent: clampPercent(Number(manifestDefault("frosted_percent")), 0),
   }
 }
 
@@ -296,7 +296,7 @@ function useAppearanceSettings(dark: boolean) {
   }, [])
 
   const setFrostedPercent = useCallback((next: number) => {
-    const clamped = clampPercent(next, 6)
+    const clamped = clampPercent(next, 0)
     writeStorage(STORAGE_KEYS.frostedPercent, String(clamped))
     setOverrides((prev) => ({ ...prev, frostedPercent: clamped }))
   }, [])
@@ -515,11 +515,12 @@ export default function App() {
         />
       )}
 
-      {/* Arc-style tactile film grain overlay */}
+      {/* Arc-style tactile film grain overlay on the gradient chrome only:
+          it sits under the shell so the right paper stage stays clean. */}
       {effective.grainPercent > 0 && (
         <div
           className={cn(
-            "pointer-events-none fixed inset-0 z-50 select-none transition-opacity duration-200 motion-reduce:transition-none",
+            "pointer-events-none fixed inset-0 z-0 select-none transition-opacity duration-200 motion-reduce:transition-none",
             dark ? "bg-noise-dark" : "bg-noise-light",
           )}
           style={{
@@ -595,8 +596,14 @@ export default function App() {
             backgroundColor: "color-mix(in oklch, var(--stage) calc(var(--stage-opacity, 1) * 100%), transparent)",
           }}
         >
-          {/* Slim sticky Stage Top Bar */}
-          <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-2 rounded-t-2xl border-b border-border/60 bg-background/55 px-3 sm:px-5 backdrop-blur-md">
+          {/* Slim sticky Stage Top Bar: shares the stage surface so the bar and
+              the content below it read as one sheet. */}
+          <header
+            className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-2 rounded-t-2xl border-b border-border/50 px-3 backdrop-blur-md sm:px-5"
+            style={{
+              backgroundColor: "color-mix(in oklch, var(--stage) calc(var(--stage-opacity, 1) * 100%), transparent)",
+            }}
+          >
             <div className="flex min-w-0 items-center gap-2">
               {/* Mobile drawer button */}
               <Button
@@ -654,7 +661,7 @@ export default function App() {
                     </>
                   )}
                   <Dot node={selected} className="size-2 shrink-0" />
-                  {selected.country && <Flag code={selected.country} showCode={false} className="shrink-0" />}
+                  {selected.country && <Flag code={selected.country} className="shrink-0" />}
                   <span className="min-w-0 truncate font-semibold">{selected.name}</span>
                 </div>
               ) : (
@@ -743,7 +750,7 @@ export default function App() {
               sorted.length === 0 ? (
                 <Card className="py-16 text-center text-sm text-muted-foreground">{t("common.noNodes")}</Card>
               ) : (
-                <OverviewDashboard nodes={sorted} prefetchDetail={prefetchDetail} />
+                <OverviewDashboard nodes={sorted} />
               )
             ) : selected ? (
               <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>

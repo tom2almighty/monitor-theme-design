@@ -340,7 +340,7 @@ export function OverviewCharts({
                       limit > 0
                         ? `${bytes(used)} / ${bytes(limit)} (${percent(used, limit).toFixed(1)}%)`
                         : bytes(used),
-                      t("table.cols.traffic"),
+                      t("overview.charts.trafficUsed"),
                     ]
                   }}
                   contentStyle={TIP}
@@ -410,7 +410,7 @@ export function OverviewCharts({
                     style={{ backgroundColor: CHART_PALETTE[idx % CHART_PALETTE.length] }}
                   />
                   {region.code ? (
-                    <Flag code={region.code} showCode={false} className="shrink-0" />
+                    <Flag code={region.code} className="shrink-0" />
                   ) : null}
                   <span className="truncate font-medium text-foreground">
                     {region.code || t("overview.charts.unknownRegion")}

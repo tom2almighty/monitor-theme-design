@@ -18,8 +18,7 @@
     "login": "站长登录",
     "themeCredit": "主题 {{name}} · {{author}}",
     "poweredBy": "Powered by",
-    "switchLanguage": "切换语言（当前：中文）",
-    "languageShort": "EN"
+    "switchLanguage": "切换语言（当前：中文）"
   },
   "status": {
     "online": "在线",
@@ -107,46 +106,7 @@
       "default": "tweakcn 默认 · 中性极简"
     }
   },
-  "table": {
-    "title": "服务器列表",
-    "nodeCount": "{{count}} 个节点",
-    "nodeCountFiltered": "{{shown}} / {{total}} 个节点",
-    "searchPlaceholder": "快速过滤服务器…",
-    "onlineTitle": "在线节点数 / 节点总数",
-    "speed": "网速",
-    "speedTitle": "在线节点此刻的下行与上行之和",
-    "month": "本月",
-    "monthTitle": "所有节点本期的下载与上传之和",
-    "total": "累计",
-    "totalTitle": "所有节点自接入以来的下载与上传之和",
-    "empty": "没有匹配的服务器",
-    "cols": {
-      "status": "状态",
-      "name": "名称",
-      "location": "位置",
-      "os": "系统",
-      "uptime": "在线",
-      "expiry": "到期",
-      "load": "负载",
-      "speed": "网速",
-      "cpu": "CPU",
-      "mem": "内存",
-      "disk": "硬盘",
-      "traffic": "流量"
-    },
-    "expiry": {
-      "never": "永不到期",
-      "expired": "已过期",
-      "days": "{{days}} 天"
-    },
-    "trafficTitle": "本期已用 {{usage}}",
-    "trafficUnlimited": "{{used}} · 无流量配额"
-  },
   "details": {
-    "viewLabel": "详情视图",
-    "tabLatency": "网络延迟",
-    "tabOverview": "系统概览",
-    "notDeployed": "尚未接入。在后台生成安装命令并执行一次。",
     "system": {
       "title": "系统信息",
       "os": "系统",
@@ -157,7 +117,6 @@
     },
     "resources": {
       "title": "资源监控",
-      "historyLink": "历史图表",
       "cpu": "CPU",
       "mem": "内存",
       "swap": "交换",
@@ -204,11 +163,8 @@
   },
   "overview": {
     "title": "集群运行总览",
-    "subtitle": "实时汇总各节点负载、带宽与流量消耗，点击任意节点或图表条目进入详情",
+    "subtitle": "实时汇总各节点负载、带宽与流量消耗，点击图表条目进入详情",
     "livePulse": "实时推送",
-    "viewModeLabel": "节点展示模式",
-    "viewCards": "卡片视图",
-    "viewTable": "表格视图",
     "kpi": {
       "fleetHealth": "在线状态",
       "onlineRate": "在线率 {{rate}}%",
@@ -226,6 +182,7 @@
       "liveBandwidthDesc": "随 WebSocket 快照持续记录近 {{seconds}} 秒全站下行与上行速率",
       "trafficTopTitle": "本期流量排行",
       "trafficTopDesc": "按当前计费周期累计流量排序（前 {{count}} 台）",
+      "trafficUsed": "本期流量",
       "regionTitle": "地区与在线分布",
       "regionDesc": "按国家/地区统计节点规模与在线数",
       "unknownRegion": "未知地区",
@@ -233,15 +190,9 @@
       "noTrafficData": "暂无流量数据",
       "collectingSamples": "正在采集实时快照…",
       "nodesUnit": "{{count}} 台"
-    },
-    "directory": {
-      "title": "节点一览",
-      "openDetail": "查看监控详情",
-      "uptimeShort": "运行 {{time}}"
     }
   },
   "charts": {
-    "label": "图表",
     "rangeLabel": "时间范围",
     "loadFailed": "读取历史数据失败：{{message}}",
     "noHistory": "这段时间没有历史数据",
@@ -256,9 +207,7 @@
     "tabs": {
       "cpu": "CPU",
       "mem": "内存",
-      "net": "网络",
-      "disk": "硬盘",
-      "ping": "延迟"
+      "disk": "硬盘"
     },
     "ranges": {
       "1": "1 小时",
@@ -274,8 +223,6 @@
     "uplink": "上行",
     "diskTitle": "硬盘占用",
     "latencyTitle": "网络延迟探测",
-    "liveSectionTitle": "实时状态快照",
-    "historySectionTitle": "历史趋势监控",
     "specsSectionTitle": "硬件配置与账期"
   }
 }

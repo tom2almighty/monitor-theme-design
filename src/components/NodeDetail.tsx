@@ -400,9 +400,9 @@ function LiveStatCard({
 /**
  * Reorganized Arc Server Detail Studio (`/node/{id}`):
  * 1. Unified hero header with global time-range selector
- * 2. 4 live metric hero tiles (CPU / Memory / Disk / Live Network & Traffic)
- * 3. Simultaneous 2x2 historical telemetry grid (CPU, Memory, Network, Disk)
- * 4. Full-width latency probe panel below
+ * 2. 4 live metric tiles (CPU / Memory / Disk / Live Network & Traffic)
+ * 3. Full-width latency probe panel
+ * 4. Simultaneous 2x2 historical telemetry grid (CPU, Memory, Network, Disk)
  * 5. Structured hardware & billing specification grid
  */
 export function NodeDetail({ node }: { node: Node }) {
@@ -455,7 +455,7 @@ export function NodeDetail({ node }: { node: Node }) {
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Dot node={node} className="size-2.5" />
-            {node.country && <Flag code={node.country} showCode={false} className="text-base" />}
+            {node.country && <Flag code={node.country} className="text-base" />}
             <h1 className="min-w-0 truncate text-xl font-semibold tracking-[-0.025em] text-foreground sm:text-2xl">
               {node.name}
             </h1>
@@ -566,7 +566,19 @@ export function NodeDetail({ node }: { node: Node }) {
         />
       </div>
 
-      {/* 3. Simultaneous 2x2 Historical Telemetry Grid */}
+      {/* 3. Full-Width Latency Intelligence Panel (automatically hidden when no probes exist) */}
+      {known !== false && (
+        <Latency
+          id={node.id}
+          hours={safeHours}
+          card
+          title={t("charts.latencyTitle")}
+          className="h-68"
+          onKnown={learn}
+        />
+      )}
+
+      {/* 4. Simultaneous 2x2 Historical Telemetry Grid */}
       {!data ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {[0, 1, 2, 3].map((i) => (
@@ -682,24 +694,12 @@ export function NodeDetail({ node }: { node: Node }) {
         </div>
       )}
 
-      {/* 4. Full-Width Latency Intelligence Panel (automatically hidden when no probes exist) */}
-      {known !== false && (
-        <Latency
-          id={node.id}
-          hours={safeHours}
-          card
-          title={t("charts.latencyTitle")}
-          className="h-68"
-          onKnown={learn}
-        />
-      )}
-
       {/* 5. Detailed Hardware & Billing Specifications */}
       <section className="space-y-3">
         <h2 className="text-sm font-semibold tracking-[-0.01em] text-foreground">
           {t("charts.specsSectionTitle")}
         </h2>
-        <NodeOverview node={node} showHistoryLink={false} />
+        <NodeOverview node={node} />
       </section>
     </div>
   )

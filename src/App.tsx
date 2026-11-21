@@ -9,10 +9,12 @@ import {
   useState,
   useSyncExternalStore,
 } from "react"
+import { useTranslation } from "react-i18next"
 import {
   ArrowUp,
   ChevronLeft,
   ChevronRight,
+  Languages,
   Menu,
   Palette,
   PanelLeftOpen,
@@ -22,7 +24,7 @@ import {
 import { ArcSidebar } from "@/components/ArcSidebar"
 import { ArcThemeEditor, type AppearanceMode } from "@/components/ArcThemeEditor"
 import { Dot, Flag } from "@/components/NodeMarks"
-import { ServerTable, ServerTableSkeleton } from "@/components/ServerTable"
+import { OverviewDashboard, OverviewSkeleton } from "@/components/OverviewDashboard"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -38,6 +40,7 @@ import {
   serializeArcColors,
 } from "@/lib/arc-theme"
 import { fields, loadConfig, saveConfig } from "@/lib/config"
+import { toggleLocale } from "@/lib/i18n"
 import { usePref } from "@/lib/prefs"
 import { Link, navigate, useNodeRoute } from "@/lib/route"
 import { THEMES } from "@/lib/themes"
@@ -245,9 +248,7 @@ function useAppearanceSettings(dark: boolean) {
   }, [effective.arcEnabled, effective.arcColors, effective.arcIntensity, activePreset, dark])
 
   useLayoutEffect(() => {
-    // Stage paper runs from crisp opaque (1.0 at 0%) to translucent glass (0.24 at 100%).
     const stageAlpha = Math.max(0.24, 1 - (effective.frostedPercent * 0.76) / 100)
-    // Inner cards stay slightly more opaque than the stage so tables/charts remain crisp.
     const cardAlpha = Math.max(0.45, 1 - (effective.frostedPercent * 0.55) / 100)
     const root = document.documentElement
     root.style.setProperty("--stage-opacity", String(stageAlpha))
@@ -339,6 +340,7 @@ function useAppearanceSettings(dark: boolean) {
 
 /** Back-to-top button supporting both desktop inner-stage scroll and mobile window scroll. */
 function BackToTop({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
+  const { t } = useTranslation()
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -361,8 +363,8 @@ function BackToTop({ containerRef }: { containerRef: React.RefObject<HTMLDivElem
       variant="outline"
       size="icon"
       className="fixed right-6 bottom-6 z-30 rounded-full bg-popover/90 shadow-md backdrop-blur-md max-md:right-4 max-md:bottom-4"
-      title="回到顶部"
-      aria-label="回到顶部"
+      title={t("common.backToTop")}
+      aria-label={t("common.backToTop")}
       onClick={() => {
         containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
         scrollTo({ top: 0, behavior: "smooth" })
@@ -374,6 +376,7 @@ function BackToTop({ containerRef }: { containerRef: React.RefObject<HTMLDivElem
 }
 
 export default function App() {
+  const { t } = useTranslation()
   const { mode, dark, choose } = useTheme()
   const {
     effective,
@@ -401,8 +404,8 @@ export default function App() {
   const loadMe = useCallback(() => {
     return api<Me>("/me")
       .then((next) => { setMe(next); setMeError("") })
-      .catch((e: Error) => setMeError(e.message || "网络错误"))
-  }, [])
+      .catch((e: Error) => setMeError(e.message || t("common.networkError")))
+  }, [t])
 
   const prefetchDetail = useCallback(() => {
     void loadMonitor()
@@ -465,11 +468,11 @@ export default function App() {
     <div className="grid min-h-svh place-items-center p-6 text-sm text-muted-foreground">
       {meError ? (
         <div className="space-y-3 text-center">
-          <p role="alert">加载失败：{meError}</p>
-          <Button onClick={loadMe}>重试</Button>
+          <p role="alert">{t("common.loadFailed", { message: meError })}</p>
+          <Button onClick={loadMe}>{t("common.retry")}</Button>
         </div>
       ) : (
-        "加载中…"
+        t("common.loading")
       )}
     </div>
   )
@@ -555,7 +558,7 @@ export default function App() {
             />
             <aside
               role="dialog"
-              aria-label="导航侧边栏"
+              aria-label={t("sidebar.title")}
               className="relative z-10 flex h-full w-[min(18rem,84vw)] flex-col overflow-hidden border-r border-(--arc-chrome-border) bg-background shadow-2xl"
               style={
                 arcLook
@@ -600,8 +603,8 @@ export default function App() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setMobileMenuOpen(true)}
-                aria-label="打开服务器侧边栏"
-                title="打开侧边栏"
+                aria-label={t("sidebar.open")}
+                title={t("sidebar.openShort")}
                 className="shrink-0 lg:hidden cursor-pointer"
               >
                 <Menu className="size-4" />
@@ -613,8 +616,8 @@ export default function App() {
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => setSidebarCollapsed(false)}
-                  aria-label="展开侧边栏"
-                  title="展开侧边栏 (Ctrl+\\)"
+                  aria-label={t("sidebar.expand")}
+                  title={t("sidebar.expandShortcut")}
                   className="hidden shrink-0 lg:inline-flex cursor-pointer"
                 >
                   <PanelLeftOpen className="size-4" />
@@ -626,10 +629,10 @@ export default function App() {
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-sm font-semibold">{site}</span>
                   <span className="hidden text-muted-foreground sm:inline">/</span>
-                  <span className="hidden text-xs text-muted-foreground sm:inline">全部概览</span>
+                  <span className="hidden text-xs text-muted-foreground sm:inline">{t("sidebar.overview")}</span>
                   {nodes && (
-                    <span className="tnum inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-                      {onlineCount}/{sorted.length} 在线
+                    <span className="tnum inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      {t("status.onlineSummary", { online: onlineCount, total: sorted.length })}
                     </span>
                   )}
                 </div>
@@ -639,7 +642,7 @@ export default function App() {
                     href="/"
                     className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    全部概览
+                    {t("sidebar.overview")}
                   </Link>
                   <span className="shrink-0 text-muted-foreground/60">/</span>
                   {selected.group && (
@@ -657,10 +660,10 @@ export default function App() {
               ) : (
                 <div className="flex min-w-0 items-center gap-1.5 text-sm">
                   <Link href="/" className="text-xs text-muted-foreground hover:text-foreground">
-                    全部概览
+                    {t("sidebar.overview")}
                   </Link>
                   <span className="text-muted-foreground/60">/</span>
-                  <span className="truncate font-medium">节点不存在</span>
+                  <span className="truncate font-medium">{t("common.nodeNotFound")}</span>
                 </div>
               )}
             </div>
@@ -673,8 +676,8 @@ export default function App() {
                     variant="outline"
                     size="icon-sm"
                     disabled={!previousNode}
-                    aria-label="上一个节点"
-                    title={previousNode ? `上一个：${previousNode.name}` : "已经是第一个节点"}
+                    aria-label={t("sidebar.prevNode")}
+                    title={previousNode ? t("sidebar.prevNodeTitle", { name: previousNode.name }) : t("sidebar.firstNodeTitle")}
                     onClick={() => previousNode && navigate(`/node/${previousNode.id}`)}
                     className="cursor-pointer"
                   >
@@ -684,8 +687,8 @@ export default function App() {
                     variant="outline"
                     size="icon-sm"
                     disabled={!nextNode}
-                    aria-label="下一个节点"
-                    title={nextNode ? `下一个：${nextNode.name}` : "已经是最后一个节点"}
+                    aria-label={t("sidebar.nextNode")}
+                    title={nextNode ? t("sidebar.nextNodeTitle", { name: nextNode.name }) : t("sidebar.lastNodeTitle")}
                     onClick={() => nextNode && navigate(`/node/${nextNode.id}`)}
                     className="cursor-pointer"
                   >
@@ -694,13 +697,23 @@ export default function App() {
                 </div>
               )}
 
-              {/* Quick theme & admin actions on mobile or when desktop sidebar is collapsed */}
+              {/* Quick language, theme & admin actions on mobile or when desktop sidebar is collapsed */}
               <div className={cn("flex items-center gap-1", !sidebarCollapsed && "lg:hidden")}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleLocale}
+                  aria-label={t("common.switchLanguage")}
+                  title={t("common.switchLanguage")}
+                  className="size-8 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <Languages className="size-3.5" />
+                </Button>
                 <ArcThemeEditor {...themeEditorProps} placement="topbar" />
                 <a
                   href="/admin/"
-                  title={me.authed ? "后台管理" : "站长登录"}
-                  aria-label={me.authed ? "后台管理" : "站长登录"}
+                  title={me.authed ? t("common.admin") : t("common.login")}
+                  aria-label={me.authed ? t("common.admin") : t("common.login")}
                   className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 >
                   <UserRound className="size-4" />
@@ -713,7 +726,7 @@ export default function App() {
           <main className="mx-auto w-full max-w-6xl min-w-0 flex-1 space-y-5 px-3.5 py-4 sm:px-6 sm:py-5">
             {notice ? (
               <div className="flex items-start gap-2.5 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-foreground">
-                <span className="shrink-0 font-semibold text-primary">公告</span>
+                <span className="shrink-0 font-semibold text-primary">{t("common.notice")}</span>
                 <div className="min-w-0 flex-1 whitespace-pre-wrap">{notice}</div>
               </div>
             ) : null}
@@ -725,12 +738,12 @@ export default function App() {
             )}
 
             {!nodes ? (
-              <ServerTableSkeleton />
+              <OverviewSkeleton />
             ) : open === null ? (
               sorted.length === 0 ? (
-                <Card className="py-16 text-center text-sm text-muted-foreground">还没有节点</Card>
+                <Card className="py-16 text-center text-sm text-muted-foreground">{t("common.noNodes")}</Card>
               ) : (
-                <ServerTable nodes={sorted} />
+                <OverviewDashboard nodes={sorted} prefetchDetail={prefetchDetail} />
               )
             ) : selected ? (
               <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
@@ -738,7 +751,10 @@ export default function App() {
               </Suspense>
             ) : (
               <Card className="py-16 text-center text-sm text-muted-foreground">
-                节点不存在或未公开。<Link href="/" className="font-medium text-foreground hover:underline">返回总览</Link>
+                {t("common.nodeNotFoundMessage")}{" "}
+                <Link href="/" className="font-medium text-foreground hover:underline">
+                  {t("common.backToOverview")}
+                </Link>
               </Card>
             )}
           </main>
@@ -747,14 +763,14 @@ export default function App() {
           <footer className="mt-auto border-t border-border/50 px-4 py-4 sm:px-6">
             <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
               <span>
-                {site} · Powered by{" "}
+                {site} · {t("common.poweredBy")}{" "}
                 <a href="https://github.com/monitor-probe/monitor" target="_blank" rel="noreferrer" className="font-medium hover:text-foreground">
                   monitor
                 </a>
               </span>
               <a href={theme.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-foreground">
                 <Palette className="size-3.5" />
-                主题 {theme.name} · {theme.author}
+                {t("common.themeCredit", { name: theme.name, author: theme.author })}
               </a>
             </div>
           </footer>

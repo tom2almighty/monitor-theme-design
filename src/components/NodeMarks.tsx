@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import {
   siAlmalinux, siAlpinelinux, siArchlinux, siCentos, siDebian, siFedora, siLinux, siOpensuse, siRedhat,
   siRockylinux, siUbuntu, type SimpleIcon,
@@ -29,12 +30,13 @@ export function deployed(node: Node) {
 
 /** Online, offline, or never heard from: a dot with a soft halo, with subtle pulse when online. */
 export function Dot({ node, className }: { node: Node; className?: string }) {
+  const { t } = useTranslation()
   const isOnline = node.online
   const isOffline = deployed(node)
 
   return (
     <span
-      title={isOnline ? "在线" : isOffline ? "离线" : "未接入"}
+      title={isOnline ? t("status.online") : isOffline ? t("status.offline") : t("status.unconnected")}
       className={cn(
         "relative inline-flex size-2.5 shrink-0 items-center justify-center align-middle",
         className,
@@ -42,15 +44,15 @@ export function Dot({ node, className }: { node: Node; className?: string }) {
     >
       {isOnline ? (
         <>
-          <span className="absolute inset-0 rounded-full bg-emerald-500 opacity-50 animate-ping" />
-          <span className="relative size-full rounded-full bg-emerald-500 shadow-[0_0_0_1.5px_rgba(16,185,129,0.25)]" />
+          <span className="absolute inset-0 rounded-full bg-success opacity-50 animate-ping motion-reduce:animate-none" />
+          <span className="relative size-full rounded-full bg-success ring-2 ring-success/25" />
         </>
       ) : (
         <span
           className={cn(
             "size-full rounded-full",
             isOffline
-              ? "bg-red-500 shadow-[0_0_0_1.5px_rgba(239,68,68,0.25)]"
+              ? "bg-destructive ring-2 ring-destructive/25"
               : "bg-muted-foreground/40",
           )}
         />
@@ -110,7 +112,7 @@ export function OsIcon({ os, className }: { os: string; className?: string }) {
  * answer "how full" in the same colours.
  */
 export function barTone(pct: number): string {
-  return pct >= 90 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500"
+  return pct >= 90 ? "bg-destructive" : pct >= 80 ? "bg-warning" : "bg-success"
 }
 
 /**

@@ -46,9 +46,11 @@ src/
 ├── components/
 │   ├── ArcSidebar.tsx      Arc 侧栏（搜索、概览/在线快捷磁贴、可折叠分组树、单行节点列表、底部工具栏）
 │   ├── ArcThemeEditor.tsx  原生 Arc 主题调色器（2D 点阵色盘、随机配色、5 页色板、波浪强度、颗粒旋钮）
-│   ├── MonitorPage.tsx     单节点详情页：上方硬件/流量/账期概览卡，下方历史图表
-│   ├── ServerTable.tsx     首页全部服务器总览列表、搜索、分组筛选、排序
-│   ├── NodeDetail.tsx      节点历史图表与延迟图（recharts 懒加载）
+│   ├── OverviewDashboard.tsx 首页 `/` 集群遥测总览（4 KPI 卡 + 4 实时图表 + Bento 节点卡/紧凑表格切换）
+│   ├── OverviewCharts.tsx  首页实时图表组（节点负载对比、实时带宽趋势、本期流量排行、地区分布环图）
+│   ├── MonitorPage.tsx     单节点详情页入口
+│   ├── ServerTable.tsx     紧凑型服务器表格视图
+│   ├── NodeDetail.tsx      单节点遥测详情工作台（实时概览 + 2×2 历史图表 + 全宽延迟图 + 硬件账期）
 │   ├── RowDetails.tsx      首页表格展开行与可复用的节点硬件概览卡
 │   ├── NodeMarks.tsx       状态点、国旗 Emoji、系统图标、进度条、数字槽位
 │   └── ui/                 shadcn 风格基础组件
@@ -124,14 +126,14 @@ src/
 ## 样式规范
 
 - 只使用语义化 Token：`bg-background`、`text-foreground`、`text-muted-foreground`、`border-border`、`bg-card` 等。业务组件里不写 `bg-gray-100`、`text-zinc-600` 这类调色板色值
-- 颜色倾向通过 `src/index.css` 主题变量调整，不在组件里堆色值。状态色（在线绿、告警黄、错误红）沿用现有 emerald/amber/red 用法
+- 颜色倾向通过 `src/index.css` 主题变量调整，不在组件里堆色值。状态色统一使用语义 Token（`--success`、`--warning`、`--info`、`--destructive` 及其 `-foreground`），禁止在业务组件里硬编码 `emerald-*`/`amber-*`/`blue-*`/`red-*` 调色板色值
+- 界面文案统一通过 `i18next`（`src/locales/zh-CN.json` 与 `src/locales/en-US.json`）管理，默认跟随浏览器语言并支持手动切换，禁止在组件内硬编码业务文案；源码注释用英文
 - 尺寸走 Tailwind 预设刻度和 4px 基线：`text-xs/sm/base/lg`、`p-2/3/4`、`gap-2`、`rounded-md/lg`。禁止滥用任意像素值；只有 recharts/SVG 画布或需要动态计算的定位才允许中括号
 - 类名合并统一用 `cn()`（`clsx` + `tailwind-merge`）
 - 交互元素要有 hover、focus-visible、active、disabled 状态
 - 默认支持亮色、暗色、跟随系统三种模式；首帧脚本在 `index.html` 里
 - 图标用 lucide，品牌图标用 simple-icons，国旗使用 Unicode 区域指示符配合自托管 `country-flag-emoji-polyfill`（`TwemojiCountryFlags.woff2`）。不用 Emoji 代替通用界面图标
 - 移动端必须保证没有横向溢出：长文本 `min-w-0` + `truncate`，多按钮行 `flex-wrap`，标签行 `overflow-x-auto`
-- 源码注释用英文，界面文案用中文
 
 ## 构建与发布
 

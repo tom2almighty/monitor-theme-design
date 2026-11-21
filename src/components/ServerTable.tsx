@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Search } from "lucide-react"
 
 import { Dot, Flag, Meter, Num, OsIcon, SLOT } from "@/components/NodeMarks"
@@ -29,16 +30,17 @@ function Bar({ pct, label }: { pct: number | null; label?: string }) {
 }
 
 function Expiry({ node }: { node: Node }) {
+  const { t } = useTranslation()
   const days = node.expires_in !== undefined ? node.expires_in : daysUntil(node.expires_at)
-  if (days === null) return <span className="text-muted-foreground" title="永不到期">{FOREVER}</span>
-  if (days < 0) return <Badge variant="destructive" className="px-1.5 py-0 text-[10px] font-normal">已过期</Badge>
-  if (days <= 7) return <Badge variant="warning" className="px-1.5 py-0 text-[10px] font-normal">{days} 天</Badge>
-  return <span className="text-foreground">{days} 天</span>
+  if (days === null) return <span className="text-muted-foreground" title={t("table.expiry.never")}>{FOREVER}</span>
+  if (days < 0) return <Badge variant="destructive" className="px-1.5 py-0 text-[10px] font-normal">{t("table.expiry.expired")}</Badge>
+  if (days <= 7) return <Badge variant="warning" className="px-1.5 py-0 text-[10px] font-normal">{t("table.expiry.days", { days })}</Badge>
+  return <span className="text-foreground">{t("table.expiry.days", { days })}</span>
 }
 
 /**
  * Column widths and responsive folding.
- * On wide screens (max-w-7xl), all 12 columns are comfortably displayed.
+ * On wide screens, all 12 columns are comfortably displayed.
  * On smaller screens, secondary columns gracefully hide.
  */
 const COL = {
@@ -57,7 +59,7 @@ const COL = {
 type SortField = "name" | "uptime" | "load" | "speed" | "cpu" | "mem" | "disk" | "traffic"
 type SortOrder = "asc" | "desc"
 
-function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): Node[] {
+function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder, locale: string): Node[] {
   if (!field) return [...nodes].sort((a, b) => a.sort - b.sort || a.id - b.id)
 
   return [...nodes].sort((a, b) => {
@@ -67,7 +69,7 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
 
     switch (field) {
       case "name":
-        res = a.name.localeCompare(b.name, "zh-CN")
+        res = a.name.localeCompare(b.name, locale)
         break
       case "uptime":
         res = (ma?.uptime ?? -1) - (mb?.uptime ?? -1)
@@ -106,10 +108,19 @@ function sortNodes(nodes: Node[], field: SortField | null, order: SortOrder): No
 }
 
 function Row({ node }: { node: Node }) {
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const m = node.online ? node.metrics : null
   const traffic = monthUsage(node)
   const toggle = () => setOpen((o) => !o)
+  const lang = i18n.resolvedLanguage ?? i18n.language
+
+  const trafficTooltip =
+    node.traffic_limit > 0
+      ? t("table.trafficTitle", {
+          usage: `${pair(traffic, node.traffic_limit)} (${((traffic / node.traffic_limit) * 100).toFixed(1)}%)`,
+        })
+      : t("table.trafficTitle", { usage: t("table.trafficUnlimited", { used: bytes(traffic) }) })
 
   return (
     <>
@@ -147,19 +158,19 @@ function Row({ node }: { node: Node }) {
             <span className="truncate">{distro(node.os) || "—"}</span>
           </span>
         </TableCell>
-        <TableCell className={cn(COL.uptime, "tnum")}>{m ? duration(m.uptime) : "—"}</TableCell>
+        <TableCell className={cn(COL.uptime, "tnum")}>{m ? duration(m.uptime, lang) : "—"}</TableCell>
         <TableCell className={cn(COL.expiry, "tnum")}><Expiry node={node} /></TableCell>
         <TableCell className={cn(COL.load, "tnum")}>{m ? m.load[0].toFixed(2) : "—"}</TableCell>
         <TableCell className={COL.speed}>
           {m ? (
             <div className="inline-flex items-center justify-center text-xs @max-3xl:flex @max-3xl:flex-col @max-3xl:items-center @max-3xl:gap-0.5 @max-3xl:text-[9px] @max-3xl:leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
-                <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0 @max-3xl:size-2.5" />
+                <ArrowDown className="size-3 text-success shrink-0 @max-3xl:size-2.5" />
                 <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_rx)}</Num>
               </span>
               <span className="mx-1 text-muted-foreground/60 @max-3xl:hidden">|</span>
               <span className="inline-flex items-center gap-0.5 leading-none">
-                <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0 @max-3xl:size-2.5" />
+                <ArrowUp className="size-3 text-info shrink-0 @max-3xl:size-2.5" />
                 <Num ch={SLOT.compact} className="@max-3xl:min-w-0">{compact(m.net_tx)}</Num>
               </span>
             </div>
@@ -173,10 +184,7 @@ function Row({ node }: { node: Node }) {
         <TableCell className={COL.bar}><Bar pct={m ? m.cpu : null} /></TableCell>
         <TableCell className={COL.bar}><Bar pct={m ? percent(m.mem_used, m.mem_total) : null} /></TableCell>
         <TableCell className={COL.bar}><Bar pct={m ? percent(m.disk_used, m.disk_total) : null} /></TableCell>
-        <TableCell
-          className={COL.traffic}
-          title={`本期已用 ${node.traffic_limit > 0 ? `${pair(traffic, node.traffic_limit)}（${((traffic / node.traffic_limit) * 100).toFixed(1)}%）` : `${bytes(traffic)} · 无流量配额`}`}
-        >
+        <TableCell className={COL.traffic} title={trafficTooltip}>
           <Bar
             pct={node.traffic_limit > 0 ? percent(traffic, node.traffic_limit) : null}
             label={`${compact(traffic)} / ${node.traffic_limit > 0 ? compact(node.traffic_limit) : FOREVER}`}
@@ -237,9 +245,11 @@ function SortableHead({
 }
 
 export function ServerTable({ nodes }: { nodes: Node[] }) {
+  const { t, i18n } = useTranslation()
   const [query, setQuery] = useState("")
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
+  const lang = i18n.resolvedLanguage ?? i18n.language
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -275,7 +285,10 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
   const live = (pick: (m: NonNullable<Node["metrics"]>) => number) => online.reduce((total, n) => total + pick(n.metrics!), 0)
   const all = (pick: (n: Node) => number) => groupNodes.reduce((total, n) => total + pick(n), 0)
 
-  const sortedNodes = useMemo(() => sortNodes(groupNodes, sortField, sortOrder), [groupNodes, sortField, sortOrder])
+  const sortedNodes = useMemo(
+    () => sortNodes(groupNodes, sortField, sortOrder, lang),
+    [groupNodes, sortField, sortOrder, lang],
+  )
   const q = query.trim().toLowerCase()
   const filteredNodes = useMemo(() => {
     if (!q) return sortedNodes
@@ -283,18 +296,18 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
   }, [sortedNodes, q])
 
   const heads: [keyof typeof COL, ReactNode, SortField?][] = [
-    ["status", "状态"],
-    ["name", "名称", "name"],
-    ["location", "位置"],
-    ["os", "系统"],
-    ["uptime", "在线", "uptime"],
-    ["expiry", "到期"],
-    ["load", "负载", "load"],
-    ["speed", <>网速<span className="@max-3xl:hidden"> ↓|↑</span></>, "speed"],
-    ["bar", "CPU", "cpu"],
-    ["bar", "内存", "mem"],
-    ["bar", "硬盘", "disk"],
-    ["traffic", "流量", "traffic"],
+    ["status", t("table.cols.status")],
+    ["name", t("table.cols.name"), "name"],
+    ["location", t("table.cols.location")],
+    ["os", t("table.cols.os")],
+    ["uptime", t("table.cols.uptime"), "uptime"],
+    ["expiry", t("table.cols.expiry")],
+    ["load", t("table.cols.load"), "load"],
+    ["speed", <>{t("table.cols.speed")}<span className="@max-3xl:hidden"> ↓|↑</span></>, "speed"],
+    ["bar", t("table.cols.cpu"), "cpu"],
+    ["bar", t("table.cols.mem"), "mem"],
+    ["bar", t("table.cols.disk"), "disk"],
+    ["traffic", t("table.cols.traffic"), "traffic"],
   ]
 
   return (
@@ -303,16 +316,19 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
       <CardHeader className="border-b border-border/60 py-3 sm:flex-row sm:items-center sm:justify-between max-md:px-3 gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-base">服务器列表</CardTitle>
+            <CardTitle className="text-base">{t("table.title")}</CardTitle>
             <Badge variant="secondary" className="font-normal text-secondary-foreground text-[11px]">
-              {filteredNodes.length !== nodes.length ? `${filteredNodes.length} / ${nodes.length}` : `${nodes.length}`} 个节点
+              {filteredNodes.length !== nodes.length
+                ? t("table.nodeCountFiltered", { shown: filteredNodes.length, total: nodes.length })
+                : t("table.nodeCount", { count: nodes.length })}
             </Badge>
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="快速过滤服务器..."
+              placeholder={t("table.searchPlaceholder")}
+              aria-label={t("table.searchPlaceholder")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="h-7 w-32 sm:w-44 pl-8 text-xs rounded-md bg-background/50"
@@ -323,10 +339,10 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
         <div className="tnum flex flex-wrap items-center gap-2 text-xs">
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
-            title="在线节点数 / 节点总数"
+            title={t("table.onlineTitle")}
           >
-            <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.2)]" />
-            <span className="text-muted-foreground">在线</span>
+            <span className="size-2 rounded-full bg-success ring-2 ring-success/25" />
+            <span className="text-muted-foreground">{t("status.online")}</span>
             <span className="font-semibold text-foreground">
               <Num ch={String(groupNodes.length).length}>{groupNodes.filter((n) => n.online).length}</Num> / {groupNodes.length}
             </span>
@@ -334,16 +350,16 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
 
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
-            title="在线节点此刻的下行与上行之和"
+            title={t("table.speedTitle")}
           >
-            <span className="text-muted-foreground">网速</span>
+            <span className="text-muted-foreground">{t("table.speed")}</span>
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
-                <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <ArrowDown className="size-3 text-success shrink-0" />
                 <Num ch={SLOT.compact}>{compact(live((m) => m.net_rx))}</Num>/s
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
-                <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                <ArrowUp className="size-3 text-info shrink-0" />
                 <Num ch={SLOT.compact}>{compact(live((m) => m.net_tx))}</Num>/s
               </span>
             </span>
@@ -351,16 +367,16 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
 
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1"
-            title="所有节点本期的下载与上传之和"
+            title={t("table.monthTitle")}
           >
-            <span className="text-muted-foreground">本月</span>
+            <span className="text-muted-foreground">{t("table.month")}</span>
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
-                <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <ArrowDown className="size-3 text-success shrink-0" />
                 <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_rx))}</Num>
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
-                <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                <ArrowUp className="size-3 text-info shrink-0" />
                 <Num ch={SLOT.bytes}>{bytes(all((n) => n.month_tx))}</Num>
               </span>
             </span>
@@ -368,16 +384,16 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
 
           <div
             className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1 max-sm:hidden"
-            title="所有节点自接入以来的下载与上传之和"
+            title={t("table.totalTitle")}
           >
-            <span className="text-muted-foreground">累计</span>
+            <span className="text-muted-foreground">{t("table.total")}</span>
             <span className="font-semibold text-foreground inline-flex items-center gap-1.5 leading-none">
               <span className="inline-flex items-center gap-0.5 leading-none">
-                <ArrowDown className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <ArrowDown className="size-3 text-success shrink-0" />
                 <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_rx))}</Num>
               </span>
               <span className="inline-flex items-center gap-0.5 leading-none">
-                <ArrowUp className="size-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                <ArrowUp className="size-3 text-info shrink-0" />
                 <Num ch={SLOT.bytes}>{bytes(all((n) => n.total_tx))}</Num>
               </span>
             </span>
@@ -398,7 +414,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
                 : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground",
             )}
           >
-            全部 ({nodes.length})
+            {t("common.all")} ({nodes.length})
           </button>
           {groups.map((g) => {
             const count = nodes.filter((n) => n.group === g).length
@@ -429,7 +445,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
                   : "bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground",
               )}
             >
-              未分组 ({nodes.filter((n) => !(n.group ?? "")).length})
+              {t("common.ungrouped")} ({nodes.filter((n) => !(n.group ?? "")).length})
             </button>
           )}
         </div>
@@ -456,7 +472,7 @@ export function ServerTable({ nodes }: { nodes: Node[] }) {
             {filteredNodes.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={12} className="py-12 text-center text-sm text-muted-foreground">
-                  没有匹配的服务器
+                  {t("table.empty")}
                 </TableCell>
               </TableRow>
             ) : (

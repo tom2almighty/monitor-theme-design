@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import {
   ChevronLeft,
   ChevronRight,
@@ -57,16 +58,8 @@ export interface ArcThemeEditorProps {
 
 const PAD_REACH_RATIO = 0.43
 
-const APPEARANCE_OPTIONS = [
-  { value: "light" as const, label: <Sun className="size-3.5" />, title: "浅色" },
-  { value: "system" as const, label: <Monitor className="size-3.5" />, title: "跟随系统" },
-  { value: "dark" as const, label: <Moon className="size-3.5" />, title: "深色" },
-]
-
-const STYLE_MODE_OPTIONS = [
-  { value: "arc" as const, label: "Arc 背景" },
-  { value: "preset" as const, label: "经典纯色" },
-]
+type PageId = "brand" | "brand-pairs" | "pastel" | "drab" | "greyscale"
+type PresetId = "claude" | "vercel" | "twitter" | "default"
 
 /**
  * Interactive 2D dotted color wheel pad modeled after native Arc Browser:
@@ -88,12 +81,22 @@ function ArcColorPad({
   intensity: number
   onModeChange: (next: AppearanceMode) => void
 }) {
+  const { t } = useTranslation()
   const padRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState<number | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
 
   const safeActive = Math.min(activeIndex, colors.length - 1)
   const previewLook = useMemo(() => computeArcLook(colors, intensity, dark), [colors, intensity, dark])
+
+  const appearanceOptions = useMemo(
+    () => [
+      { value: "light" as const, label: <Sun className="size-3.5" />, title: t("appearance.light") },
+      { value: "system" as const, label: <Monitor className="size-3.5" />, title: t("appearance.system") },
+      { value: "dark" as const, label: <Moon className="size-3.5" />, title: t("appearance.dark") },
+    ],
+    [t],
+  )
 
   const pickColorAt = (clientX: number, clientY: number) => {
     const el = padRef.current
@@ -216,8 +219,8 @@ function ArcColorPad({
         <Segmented
           value={mode}
           onChange={onModeChange}
-          options={APPEARANCE_OPTIONS}
-          label="外观模式"
+          options={appearanceOptions}
+          label={t("appearance.label")}
           className="h-7 bg-background/70 backdrop-blur-md shadow-xs"
         />
       </div>
@@ -233,9 +236,9 @@ function ArcColorPad({
             key={i}
             type="button"
             role="slider"
-            aria-label={isPrimary ? "主色圆点" : `副色圆点 ${i + 1}`}
+            aria-label={isPrimary ? t("theme.primaryKnob") : t("theme.secondaryKnob", { index: i + 1 })}
             aria-valuetext={hex}
-            title={`拖动或使用方向键调整 (${hex})`}
+            title={t("theme.knobHint", { hex })}
             onFocus={() => setActiveIndex(i)}
             onKeyDown={(e) => {
               if (e.key === "ArrowRight") { e.preventDefault(); nudgeKnob(i, 6, 0) }
@@ -267,8 +270,8 @@ function ArcColorPad({
           type="button"
           onClick={handleRemoveColor}
           disabled={colors.length <= 1}
-          aria-label="减少颜色"
-          title="减少颜色"
+          aria-label={t("theme.removeColor")}
+          title={t("theme.removeColor")}
           className="inline-flex size-6 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring outline-none disabled:pointer-events-none disabled:opacity-30 cursor-pointer"
         >
           <Minus className="size-3.5" />
@@ -277,8 +280,8 @@ function ArcColorPad({
           type="button"
           onClick={handleAddColor}
           disabled={colors.length >= 3}
-          aria-label="增加颜色"
-          title="增加颜色（最多 3 色）"
+          aria-label={t("theme.addColor")}
+          title={t("theme.addColorTitle")}
           className="inline-flex size-6 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring outline-none disabled:pointer-events-none disabled:opacity-30 cursor-pointer"
         >
           <Plus className="size-3.5" />
@@ -287,8 +290,8 @@ function ArcColorPad({
         <button
           type="button"
           onClick={handleShuffle}
-          aria-label="随机配色"
-          title="随机生成原生 Arc 配色"
+          aria-label={t("theme.shuffle")}
+          title={t("theme.shuffleTitle")}
           className="inline-flex size-6 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-accent hover:text-foreground active:scale-95 focus-visible:ring-2 focus-visible:ring-ring outline-none cursor-pointer"
         >
           <Shuffle className="size-3.5" />
@@ -308,6 +311,7 @@ function ArcSwatchBar({
   colors: string[]
   onSelect: (next: string[]) => void
 }) {
+  const { t } = useTranslation()
   const matchedPage = presetPageOf(colors)
   const colorsKey = colors.join(",")
   const [paged, setPaged] = useState<{ key: string; index: number } | null>(null)
@@ -319,6 +323,7 @@ function ArcSwatchBar({
         : paged?.index ?? 0
 
   const page = ARC_PRESET_PAGES[pageIndex] ?? ARC_PRESET_PAGES[0]
+  const pageName = t(`theme.pages.${page.id as PageId}`)
 
   const goPage = (next: number) => {
     const clamped = Math.min(ARC_PRESET_PAGES.length - 1, Math.max(0, next))
@@ -328,16 +333,16 @@ function ArcSwatchBar({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Arc 预设色板</span>
-        <span className="tnum">{page.name} · {pageIndex + 1}/{ARC_PRESET_PAGES.length}</span>
+        <span>{t("theme.swatchTitle")}</span>
+        <span className="tnum">{pageName} · {pageIndex + 1}/{ARC_PRESET_PAGES.length}</span>
       </div>
       <div className="flex items-center justify-between gap-1">
         <button
           type="button"
           onClick={() => goPage(pageIndex - 1)}
           disabled={pageIndex <= 0}
-          aria-label="上一页预设颜色"
-          title="上一页预设"
+          aria-label={t("theme.prevPage")}
+          title={t("theme.prevPageShort")}
           className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring outline-none disabled:pointer-events-none disabled:opacity-30 cursor-pointer"
         >
           <ChevronLeft className="size-3.5" />
@@ -357,9 +362,9 @@ function ArcSwatchBar({
                 key={`${page.id}-${idx}`}
                 type="button"
                 onClick={() => onSelect([...swatch])}
-                aria-label={`${page.name} ${idx + 1}`}
+                aria-label={`${pageName} ${idx + 1}`}
                 aria-pressed={active}
-                title={`${page.name} ${idx + 1} (${swatch.join(" → ")})`}
+                title={`${pageName} ${idx + 1} (${swatch.join(" → ")})`}
                 className={cn(
                   "size-5 shrink-0 rounded-full transition-transform outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer motion-safe:hover:scale-110 motion-safe:active:scale-95",
                   active
@@ -376,8 +381,8 @@ function ArcSwatchBar({
           type="button"
           onClick={() => goPage(pageIndex + 1)}
           disabled={pageIndex >= ARC_PRESET_PAGES.length - 1}
-          aria-label="下一页预设颜色"
-          title="下一页预设"
+          aria-label={t("theme.nextPage")}
+          title={t("theme.nextPageShort")}
           className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring outline-none disabled:pointer-events-none disabled:opacity-30 cursor-pointer"
         >
           <ChevronRight className="size-3.5" />
@@ -397,6 +402,7 @@ function ArcWaveSlider({
   value: number
   onChange: (next: number) => void
 }) {
+  const { t } = useTranslation()
   const trackRef = useRef<HTMLDivElement>(null)
   const clipId = useId()
   const ratio = Math.min(1, Math.max(0, value / 100))
@@ -409,8 +415,8 @@ function ArcWaveSlider({
     const amp = 1.8 + 9.5 * ratio
     const pts: string[] = []
     for (let px = padX; px <= w - padX; px += 2) {
-      const t = (px - padX) / (w - padX * 2)
-      const y = h / 2 - amp * Math.sin(t * Math.PI * 12)
+      const tPos = (px - padX) / (w - padX * 2)
+      const y = h / 2 - amp * Math.sin(tPos * Math.PI * 12)
       pts.push(`${px === padX ? "M" : "L"}${px.toFixed(1)},${y.toFixed(1)}`)
     }
     return pts.join(" ")
@@ -428,14 +434,14 @@ function ArcWaveSlider({
   return (
     <div className="min-w-0 flex-1 space-y-1">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-medium text-foreground">显色强度</span>
+        <span className="font-medium text-foreground">{t("theme.intensity")}</span>
         <span className="tnum font-mono text-muted-foreground">{value}%</span>
       </div>
       <div
         ref={trackRef}
         role="slider"
         tabIndex={0}
-        aria-label="显色强度"
+        aria-label={t("theme.intensity")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={value}
@@ -506,6 +512,7 @@ function ArcGrainDial({
   value: number
   onChange: (next: number) => void
 }) {
+  const { t } = useTranslation()
   const dialRef = useRef<HTMLDivElement>(null)
   const ratio = Math.min(1, Math.max(0, value / 100))
   const dotCount = 20
@@ -530,16 +537,16 @@ function ArcGrainDial({
 
   return (
     <div className="flex shrink-0 flex-col items-center gap-1">
-      <span className="tnum font-mono text-xs text-muted-foreground">颗粒 {value}%</span>
+      <span className="tnum font-mono text-xs text-muted-foreground">{t("theme.grainShort", { value })}</span>
       <div
         ref={dialRef}
         role="slider"
         tabIndex={0}
-        aria-label="颗粒强度"
+        aria-label={t("theme.grain")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={value}
-        title="旋转调节颗粒质感"
+        title={t("theme.grainDialTitle")}
         onPointerDown={(e) => {
           e.preventDefault()
           e.currentTarget.setPointerCapture(e.pointerId)
@@ -603,8 +610,8 @@ function ArcGrainDial({
 }
 
 /**
- * Top-right theme studio popover combining native Arc background customization
- * with classic tweakcn presets and frosted card transparency controls.
+ * Theme studio popover combining native Arc background customization
+ * with classic tweakcn presets and frosted canvas transparency controls.
  */
 export function ArcThemeEditor({
   mode,
@@ -628,10 +635,19 @@ export function ArcThemeEditor({
   onSaveSiteDefault,
   placement = "topbar",
 }: ArcThemeEditorProps) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const styleModeOptions = useMemo(
+    () => [
+      { value: "arc" as const, label: t("theme.modeArc") },
+      { value: "preset" as const, label: t("theme.modePreset") },
+    ],
+    [t],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -656,10 +672,10 @@ export function ArcThemeEditor({
     setSaveStatus(null)
     try {
       await onSaveSiteDefault()
-      setSaveStatus("已设为全站默认")
+      setSaveStatus(t("theme.saved"))
       setTimeout(() => setSaveStatus(null), 2500)
     } catch (e: unknown) {
-      setSaveStatus(e instanceof Error ? e.message : "保存失败")
+      setSaveStatus(e instanceof Error ? e.message : t("theme.saveFailed"))
       setTimeout(() => setSaveStatus(null), 3000)
     } finally {
       setSaving(false)
@@ -670,7 +686,7 @@ export function ArcThemeEditor({
     ? arcColors.length > 1
       ? `linear-gradient(135deg, ${arcColors[0]}, ${arcColors[arcColors.length - 1]})`
       : arcColors[0]
-    : THEMES.find((t) => t.id === themeId)?.accentColor ?? THEMES[0].accentColor
+    : THEMES.find((item) => item.id === themeId)?.accentColor ?? THEMES[0].accentColor
 
   const panelPosition =
     placement === "sidebar"
@@ -685,8 +701,8 @@ export function ArcThemeEditor({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-haspopup="dialog"
-          aria-label="主题与背景设置"
-          title="主题与背景设置"
+          aria-label={t("theme.triggerLabel")}
+          title={t("theme.triggerLabel")}
           className={cn(
             "inline-flex h-8 items-center gap-2 rounded-lg px-2 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer",
             open
@@ -699,7 +715,7 @@ export function ArcThemeEditor({
             style={{ background: previewSwatch }}
             aria-hidden="true"
           />
-          <span>主题</span>
+          <span>{t("theme.triggerText")}</span>
         </button>
       ) : (
         <Button
@@ -708,12 +724,12 @@ export function ArcThemeEditor({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-haspopup="dialog"
-          aria-label="主题与背景设置"
+          aria-label={t("theme.triggerLabel")}
           className={cn(
             "size-8 rounded-md transition-colors cursor-pointer",
             open ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
           )}
-          title="主题与背景设置"
+          title={t("theme.triggerLabel")}
         >
           <Sparkles className="size-3.5 text-primary" />
         </Button>
@@ -722,7 +738,7 @@ export function ArcThemeEditor({
       {open && (
         <div
           role="dialog"
-          aria-label="主题与背景设置"
+          aria-label={t("theme.triggerLabel")}
           className={cn(
             "absolute z-50 w-[min(21.5rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 p-3.5 text-popover-foreground shadow-xl backdrop-blur-xl space-y-3.5",
             panelPosition,
@@ -733,8 +749,8 @@ export function ArcThemeEditor({
             <Segmented
               value={arcEnabled ? "arc" : "preset"}
               onChange={(v) => onArcEnabledChange(v === "arc")}
-              options={STYLE_MODE_OPTIONS}
-              label="主题风格模式"
+              options={styleModeOptions}
+              label={t("theme.styleModeLabel")}
               className="flex-1 [&>button]:flex-1"
             />
             {hasLocalOverrides && (
@@ -742,8 +758,8 @@ export function ArcThemeEditor({
                 variant="ghost"
                 size="icon-sm"
                 onClick={onResetDefaults}
-                aria-label="恢复站点默认外观"
-                title="恢复站点默认外观"
+                aria-label={t("theme.resetDefaults")}
+                title={t("theme.resetDefaults")}
                 className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 <RotateCcw className="size-3.5" />
@@ -773,30 +789,30 @@ export function ArcThemeEditor({
             <>
               <div>
                 <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
-                  <span className="text-xs font-semibold">经典配色方案</span>
+                  <span className="text-xs font-semibold">{t("theme.classicTitle")}</span>
                   <span className="text-xs text-muted-foreground">tweakcn</span>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-1.5">
-                  {THEMES.map((t) => {
-                    const active = themeId === t.id
+                  {THEMES.map((item) => {
+                    const active = themeId === item.id
                     return (
                       <button
-                        key={t.id}
+                        key={item.id}
                         type="button"
-                        onClick={() => onThemeChange(t.id)}
+                        onClick={() => onThemeChange(item.id)}
                         className={cn(
                           "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           active
                             ? "border-primary bg-primary/10 font-semibold text-foreground shadow-2xs"
                             : "border-border/60 text-muted-foreground hover:bg-muted hover:text-foreground",
                         )}
-                        title={t.desc}
+                        title={t(`theme.presets.${item.id as PresetId}`)}
                       >
                         <span
                           className="size-3 shrink-0 rounded-full border border-foreground/15 shadow-xs"
-                          style={{ backgroundColor: t.accentColor }}
+                          style={{ backgroundColor: item.accentColor }}
                         />
-                        <span className="min-w-0 flex-1 truncate font-medium leading-tight">{t.name}</span>
+                        <span className="min-w-0 flex-1 truncate font-medium leading-tight">{item.name}</span>
                       </button>
                     )
                   })}
@@ -805,7 +821,7 @@ export function ArcThemeEditor({
 
               <div className="space-y-1.5 border-t border-border/60 pt-2.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium">颗粒强度</span>
+                  <span className="font-medium">{t("theme.grain")}</span>
                   <span className="tnum font-mono text-primary font-semibold">{grainPercent}%</span>
                 </div>
                 <input
@@ -813,7 +829,7 @@ export function ArcThemeEditor({
                   min="0"
                   max="100"
                   step="1"
-                  aria-label="颗粒强度"
+                  aria-label={t("theme.grain")}
                   value={grainPercent}
                   onChange={(e) => onGrainChange(Number(e.target.value))}
                   className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -825,7 +841,7 @@ export function ArcThemeEditor({
           {/* Stage frosted translucency control */}
           <div className="space-y-1.5 border-t border-border/60 pt-2.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-medium">画布磨砂透光</span>
+              <span className="font-medium">{t("theme.stageFrosted")}</span>
               <span className="tnum font-mono text-muted-foreground">{frostedPercent}%</span>
             </div>
             <input
@@ -833,7 +849,7 @@ export function ArcThemeEditor({
               min="0"
               max="100"
               step="1"
-              aria-label="画布磨砂透光"
+              aria-label={t("theme.stageFrosted")}
               value={frostedPercent}
               onChange={(e) => onFrostedChange(Number(e.target.value))}
               className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -850,7 +866,7 @@ export function ArcThemeEditor({
                 disabled={saving}
                 onClick={handleSaveDefault}
               >
-                {saveStatus ?? (saving ? "保存中…" : "保存为全站默认外观")}
+                {saveStatus ?? (saving ? t("theme.saving") : t("theme.saveDefault"))}
               </Button>
             </div>
           )}

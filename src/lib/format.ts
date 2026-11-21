@@ -70,9 +70,12 @@ export function distro(os: string): string {
 }
 
 /** Whole days once past one, a running clock below it. */
-export function duration(seconds: number): string {
+export function duration(seconds: number, locale = "zh-CN"): string {
   const s = Math.max(0, Math.floor(seconds))
-  if (s >= 86400) return `${Math.floor(s / 86400)} 天`
+  if (s >= 86400) {
+    const days = Math.floor(s / 86400)
+    return locale.toLowerCase().startsWith("zh") ? `${days} 天` : `${days}d`
+  }
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${Math.floor(s / 3600)}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`
 }
@@ -132,22 +135,27 @@ export function virtName(virt: string): string {
 }
 
 /** `month_start` as a short date, or nothing when the hub sent none or an unreadable one. */
-export function periodStart(date?: string): string {
+export function periodStart(date?: string, locale = "zh-CN"): string {
   if (!date) return ""
   const t = new Date(date.length === 10 ? `${date}T00:00:00` : date)
-  return Number.isNaN(t.getTime()) ? "" : `${t.getMonth() + 1} 月 ${t.getDate()} 日`
+  if (Number.isNaN(t.getTime())) return ""
+  if (locale.toLowerCase().startsWith("zh")) return `${t.getMonth() + 1} 月 ${t.getDate()} 日`
+  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(t)
 }
 
 export function percent(used: number, total: number): number {
   return total > 0 ? Math.min(100, (used / total) * 100) : 0
 }
 
-export function uptime(seconds: number): string {
+export function uptime(seconds: number, locale = "zh-CN"): string {
   if (!seconds) return "—"
   const d = Math.floor(seconds / 86400)
   const h = Math.floor((seconds % 86400) / 3600)
   const m = Math.floor((seconds % 3600) / 60)
-  return d > 0 ? `${d} 天 ${h} 小时` : h > 0 ? `${h} 小时 ${m} 分` : `${m} 分`
+  if (locale.toLowerCase().startsWith("zh")) {
+    return d > 0 ? `${d} 天 ${h} 小时` : h > 0 ? `${h} 小时 ${m} 分` : `${m} 分`
+  }
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
 /** Whole days until a date, negative once it has passed. */
@@ -190,25 +198,27 @@ export const CYCLES: Record<string, string> = {
 // Both take epoch milliseconds, which is what the charts feed their time axis:
 // recharts passes `scale="time"` to a d3 time scale, and a scale given seconds
 // reads 1.79e9 as three weeks past the epoch. The hub answers in seconds.
-const HHMM = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" })
+const clockFormatters = new Map<string, { short: Intl.DateTimeFormat; long: Intl.DateTimeFormat }>()
 
-const MDHHMM = new Intl.DateTimeFormat("zh-CN", {
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-})
-
-function clock(ms: number): string {
-  return HHMM.format(ms)
+function formattersFor(locale: string) {
+  let pair = clockFormatters.get(locale)
+  if (!pair) {
+    pair = {
+      short: new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }),
+      long: new Intl.DateTimeFormat(locale, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
+    }
+    clockFormatters.set(locale, pair)
+  }
+  return pair
 }
 
 /**
  * Axis ticks for a window `hours` wide. Beyond a day a bare "14:00" recurs each
  * midnight and the axis no longer indicates which day it refers to.
  */
-export function clockFor(hours: number): (ms: number) => string {
-  return hours <= 24 ? clock : (ms: number) => MDHHMM.format(ms)
+export function clockFor(hours: number, locale = "zh-CN"): (ms: number) => string {
+  const { short, long } = formattersFor(locale)
+  return hours <= 24 ? (ms: number) => short.format(ms) : (ms: number) => long.format(ms)
 }
 
 /**

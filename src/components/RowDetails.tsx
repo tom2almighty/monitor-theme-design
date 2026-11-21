@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import { ChartLine } from "lucide-react"
 
 import { deployed, Meter, OsIcon } from "@/components/NodeMarks"
@@ -7,8 +8,8 @@ import { Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Node } from "@/lib/api"
 import {
-  bytes, cpuName, CYCLES, daysUntil, dayUsage, FOREVER, money, monthUsage, osName, pair, percent, periodStart,
-  TRAFFIC_MODES, uptime, virtName,
+  bytes, cpuName, daysUntil, dayUsage, FOREVER, money, monthUsage, osName, pair, percent, periodStart,
+  uptime, virtName,
 } from "@/lib/format"
 import { fetchHistory, latencyWindow } from "@/lib/history"
 import { knownPing } from "@/lib/pings"
@@ -19,10 +20,11 @@ import { cn } from "@/lib/utils"
 // carries no recharts.
 const Latency = lazy(() => import("@/components/NodeDetail").then((m) => ({ default: m.Latency })))
 
-const TABS = [
-  { value: "latency", label: "网络延迟" },
-  { value: "overview", label: "系统概览" },
-]
+type TrafficModeKey = "sum" | "up" | "down" | "max"
+type BillingCycleKey = "monthly" | "quarterly" | "semiannual" | "yearly" | "biennial" | "triennial" | "once"
+
+const TRAFFIC_MODE_KEYS = new Set<string>(["sum", "up", "down", "max"])
+const BILLING_CYCLE_KEYS = new Set<string>(["monthly", "quarterly", "semiannual", "yearly", "biennial", "triennial", "once"])
 
 /**
  * One topic per card, on the shaded strip the open row lays down.
@@ -42,9 +44,9 @@ function Block({ title, aside, children }: { title: string; aside?: ReactNode; c
 /** One fact per line, the label in a fixed column so the values align. */
 function Line({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <div className="grid min-w-0 grid-cols-[3.8rem_minmax(0,1fr)] items-baseline gap-x-2 text-xs leading-5">
+    <div className="grid min-w-0 grid-cols-[4.2rem_minmax(0,1fr)] items-baseline gap-x-2 text-xs leading-5">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn("tnum wrap-break-word font-medium text-foreground", className)}>{children}</span>
+      <span className={cn("tnum break-words font-medium text-foreground", className)}>{children}</span>
     </div>
   )
 }
@@ -65,24 +67,33 @@ function PeriodMeter({ used, today, limit, title }: { used: number; today: numbe
 
 /** The four cards: the machine, what it is doing, what it has moved, and its term. */
 export function NodeOverview({ node, showHistoryLink = true }: { node: Node; showHistoryLink?: boolean }) {
+  const { t, i18n } = useTranslation()
+  const lang = i18n.resolvedLanguage ?? i18n.language
   const m = node.online ? node.metrics : null
   const away = node.last_seen ? Date.now() / 1000 - node.last_seen : 0
   const days = node.expires_in !== undefined ? node.expires_in : daysUntil(node.expires_at)
   const used = monthUsage(node)
   const today = dayUsage(node)
   const limit = node.traffic_limit
-  const since = periodStart(node.month_start)
-  const usage = (used: number, total: number) => `${pair(used, total)}（${percent(used, total).toFixed(1)}%）`
+  const since = periodStart(node.month_start, lang)
+  const usage = (u: number, total: number) => `${pair(u, total)} (${percent(u, total).toFixed(1)}%)`
   const flow = (rx: number, tx: number) => `↓ ${bytes(rx)} · ↑ ${bytes(tx)}`
+  const trafficModeLabel = TRAFFIC_MODE_KEYS.has(node.traffic_mode)
+    ? t(`details.traffic.modes.${node.traffic_mode as TrafficModeKey}`)
+    : node.traffic_mode
+  const cycleLabel = BILLING_CYCLE_KEYS.has(node.billing_cycle)
+    ? t(`details.billing.cycles.${node.billing_cycle as BillingCycleKey}`)
+    : node.billing_cycle
+
   const metering = [
-    node.traffic_reset_day > 0 && `每月 ${node.traffic_reset_day} 日重置`,
-    limit > 0 && (TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode),
+    node.traffic_reset_day > 0 && t("details.traffic.resetDay", { day: node.traffic_reset_day }),
+    limit > 0 && trafficModeLabel,
   ].filter(Boolean)
 
   return (
     <div className="grid gap-3 @min-[30rem]:grid-cols-2 @6xl:grid-cols-4">
       <Block
-        title="系统信息"
+        title={t("details.system.title")}
         aside={
           <div className="flex items-center gap-1.5">
             {node.group && (
@@ -98,70 +109,89 @@ export function NodeOverview({ node, showHistoryLink = true }: { node: Node; sho
           </div>
         }
       >
-        <Line label="系统">
+        <Line label={t("details.system.os")}>
           <span className="inline-flex max-w-full items-center gap-1.5 align-middle">
             <OsIcon os={node.os} />
             <span className="min-w-0 truncate">{osName(node.os) || "—"}</span>
           </span>
         </Line>
-        {node.kernel && <Line label="内核">{node.kernel}</Line>}
-        <Line label="架构">{[node.arch, virtName(node.virt)].filter(Boolean).join(" · ") || "—"}</Line>
-        <Line label="CPU">{node.cpu_name ? `${cpuName(node.cpu_name)} × ${node.cpu_cores}` : `${node.cpu_cores} 核`}</Line>
-        <Line label={node.online ? "在线" : "离线"}>
-          {node.online ? (m ? uptime(m.uptime) : "等待上报") : away >= 60 ? uptime(away) : "刚刚"}
+        {node.kernel && <Line label={t("details.system.kernel")}>{node.kernel}</Line>}
+        <Line label={t("details.system.arch")}>{[node.arch, virtName(node.virt)].filter(Boolean).join(" · ") || "—"}</Line>
+        <Line label={t("details.system.cpu")}>
+          {node.cpu_name
+            ? `${cpuName(node.cpu_name)} × ${node.cpu_cores}`
+            : t("details.system.cores", { count: node.cpu_cores })}
+        </Line>
+        <Line label={node.online ? t("status.online") : t("status.offline")}>
+          {node.online
+            ? (m ? uptime(m.uptime, lang) : t("status.waitingReport"))
+            : away >= 60
+              ? uptime(away, lang)
+              : t("status.justNow")}
         </Line>
       </Block>
 
       <Block
-        title="资源监控"
+        title={t("details.resources.title")}
         aside={
           showHistoryLink ? (
             <Link href={`/node/${node.id}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
               <ChartLine className="size-3" />
-              历史图表
+              {t("details.resources.historyLink")}
             </Link>
           ) : null
         }
       >
-        {m && <Line label="CPU">{m.cpu.toFixed(1)}%</Line>}
-        <Line label="内存">{m ? usage(m.mem_used, m.mem_total) : bytes(node.mem_total)}</Line>
-        <Line label="交换">{node.swap_total > 0 ? (m ? usage(m.swap_used, m.swap_total) : bytes(node.swap_total)) : "未启用"}</Line>
-        <Line label="硬盘">{m ? usage(m.disk_used, m.disk_total) : bytes(node.disk_total)}</Line>
-        {m && <Line label="负载">{m.load.map((n) => n.toFixed(2)).join(" / ")}</Line>}
+        {m && <Line label={t("details.resources.cpu")}>{m.cpu.toFixed(1)}%</Line>}
+        <Line label={t("details.resources.mem")}>{m ? usage(m.mem_used, m.mem_total) : bytes(node.mem_total)}</Line>
+        <Line label={t("details.resources.swap")}>
+          {node.swap_total > 0 ? (m ? usage(m.swap_used, m.swap_total) : bytes(node.swap_total)) : t("details.resources.swapOff")}
+        </Line>
+        <Line label={t("details.resources.disk")}>{m ? usage(m.disk_used, m.disk_total) : bytes(node.disk_total)}</Line>
+        {m && <Line label={t("details.resources.load")}>{m.load.map((n) => n.toFixed(2)).join(" / ")}</Line>}
       </Block>
 
       <Block
-        title="流量统计"
+        title={t("details.traffic.title")}
         aside={
           since && (
             <span className="tnum text-[11px] text-muted-foreground">
-              {since}起
+              {t("details.traffic.since", { date: since })}
             </span>
           )
         }
       >
-        <Line label="本期">{limit > 0 ? usage(used, limit) : `${bytes(used)} / ${FOREVER}`}</Line>
+        <Line label={t("details.traffic.period")}>{limit > 0 ? usage(used, limit) : `${bytes(used)} / ${FOREVER}`}</Line>
         {limit > 0 && (
-          <PeriodMeter used={used} today={today} limit={limit} title={`本期已用 ${pair(used, limit)}，其中今日 ${bytes(today)}`} />
+          <PeriodMeter
+            used={used}
+            today={today}
+            limit={limit}
+            title={t("details.traffic.periodTitle", { pair: pair(used, limit), today: bytes(today) })}
+          />
         )}
-        <Line label="今日">{flow(node.day_rx, node.day_tx)}</Line>
-        <Line label="累计">{flow(node.total_rx, node.total_tx)}</Line>
-        {metering.length > 0 && <Line label="计量">{metering.join(" · ")}</Line>}
+        <Line label={t("details.traffic.today")}>{flow(node.day_rx, node.day_tx)}</Line>
+        <Line label={t("details.traffic.total")}>{flow(node.total_rx, node.total_tx)}</Line>
+        {metering.length > 0 && <Line label={t("details.traffic.metering")}>{metering.join(" · ")}</Line>}
       </Block>
 
-      <Block title="账期信息">
-        <Line label="续费">
-          {node.price > 0 ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}` : "免费"}
+      <Block title={t("details.billing.title")}>
+        <Line label={t("details.billing.renew")}>
+          {node.price > 0 ? `${money(node.price, node.currency)} / ${cycleLabel}` : t("details.billing.free")}
         </Line>
-        <Line label="到期">{node.expires_at || "长期有效"}</Line>
+        <Line label={t("details.billing.expiry")}>{node.expires_at || t("details.billing.permanent")}</Line>
         {days !== null && (
-          <Line label="剩余">
+          <Line label={t("details.billing.remaining")}>
             {days < 0 ? (
-              <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">已过期 {-days} 天</Badge>
+              <Badge variant="destructive" className="px-1.5 py-0 text-[10px]">
+                {t("details.billing.expiredDays", { days: -days })}
+              </Badge>
             ) : days <= 7 ? (
-              <Badge variant="warning" className="px-1.5 py-0 text-[10px]">剩余 {days} 天</Badge>
+              <Badge variant="warning" className="px-1.5 py-0 text-[10px]">
+                {t("details.billing.remainingDays", { days })}
+              </Badge>
             ) : (
-              `${days} 天`
+              t("details.billing.days", { days })
             )}
           </Line>
         )}
@@ -175,33 +205,42 @@ export function NodeOverview({ node, showHistoryLink = true }: { node: Node; sho
  * four cards of what it is behind them.
  */
 export function RowDetails({ node }: { node: Node }) {
+  const { t } = useTranslation()
   const [learned, setLearned] = useState<boolean | null>(null)
   const has = learned ?? knownPing(node.id)
   const [tab, setTab] = useState<string | null>(null)
   const shown = has === true ? tab ?? "latency" : "overview"
   const ready = deployed(node)
 
+  const tabs = useMemo(
+    () => [
+      { value: "latency", label: t("details.tabLatency") },
+      { value: "overview", label: t("details.tabOverview") },
+    ],
+    [t],
+  )
+
   useEffect(() => {
     if (ready) void fetchHistory(node.id, latencyWindow(), "ping")
   }, [node.id, ready])
 
   if (!ready) {
-    return <p className="px-4 py-4 text-sm text-muted-foreground">尚未接入。在后台生成安装命令并执行一次。</p>
+    return <p className="px-4 py-4 text-sm text-muted-foreground">{t("details.notDeployed")}</p>
   }
 
   return (
     <div className="space-y-3.5 px-4 py-3.5 text-xs @max-3xl:px-2">
       {has === true && (
         <div className="flex items-center">
-          <Segmented value={shown} onChange={setTab} options={TABS} label="详情视图" />
+          <Segmented value={shown} onChange={setTab} options={tabs} label={t("details.viewLabel")} />
         </div>
       )}
 
-      {has === undefined && <Skeleton className="h-80 rounded-lg" />}
+      {has === undefined && <Skeleton className="h-[320px] rounded-lg" />}
 
       <div hidden={shown !== "latency"}>
-        <Suspense fallback={has === true ? <Skeleton className="h-80 rounded-lg" /> : null}>
-          <Latency id={node.id} card className="h-70 @max-3xl:h-55" onKnown={setLearned} />
+        <Suspense fallback={has === true ? <Skeleton className="h-[320px] rounded-lg" /> : null}>
+          <Latency id={node.id} card className="h-[280px] @max-3xl:h-[220px]" onKnown={setLearned} />
         </Suspense>
       </div>
 

@@ -12,6 +12,7 @@ Fork 自 [stqfdyr/monitor-theme-serverstatus](https://github.com/monitor-probe/m
 - **原生 Arc 自由调色背景**：支持 2D 点阵自由色盘（1~3 个独立可拖拽颜色圆点）、一键随机配色、5 页 Arc 原生色板，自动派生深浅双半面背景与和谐强调色。
 - **双模式与质感微调**：支持「Arc 背景」与「经典纯色（Claude / Vercel / Twitter / Default）」切换，内置正弦波浪显色强度滑块、20 点环形颗粒旋钮与画布磨砂透光调节，站长登录后可一键保存为全站默认外观。
 - **轻量化自托管国旗**：使用 `country-flag-emoji-polyfill` 自托管单文件 `TwemojiCountryFlags.woff2`（约 76 KB），替代数百个静态 SVG 文件，无外部 CDN 依赖且在 Windows / macOS / 移动端一致显示。
+- **双语国际化（i18n）**：完整支持简体中文与英文（`zh-CN` / `en-US`），默认自动匹配浏览器语言，并可在界面一键切换。
 - **流畅节点导航**：侧栏提供实时搜索、「仅看在线」筛选、按节点顺序排列的可折叠分组文件夹与单行状态预览；右侧主画布展示全站概览或单机完整硬件/流量/历史图表详情。
 
 ## 路由

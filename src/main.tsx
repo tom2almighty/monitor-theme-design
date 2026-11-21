@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill"
 import flagFontUrl from "country-flag-emoji-polyfill/dist/TwemojiCountryFlags.woff2?url"
 
+import "@/lib/i18n"
 import App from "./App.tsx"
 import "./index.css"
 

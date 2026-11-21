@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import {
   Activity,
   ChevronRight,
   Folder,
   FolderOpen,
+  Languages,
   LayoutGrid,
   Monitor,
   Moon,
@@ -19,6 +21,7 @@ import { Dot, Flag } from "@/components/NodeMarks"
 import type { Node } from "@/lib/api"
 import { filterNodes } from "@/lib/filters"
 import { compact } from "@/lib/format"
+import { toggleLocale } from "@/lib/i18n"
 import { Link } from "@/lib/route"
 import { cn } from "@/lib/utils"
 
@@ -42,10 +45,10 @@ interface SidebarFolder {
   nodes: Node[]
 }
 
-const MODE_CYCLE: Record<AppearanceMode, { next: AppearanceMode; label: string }> = {
-  system: { next: "light", label: "当前：跟随系统（点击切至浅色）" },
-  light: { next: "dark", label: "当前：浅色（点击切至深色）" },
-  dark: { next: "system", label: "当前：深色（点击切至跟随系统）" },
+const NEXT_MODE: Record<AppearanceMode, AppearanceMode> = {
+  system: "light",
+  light: "dark",
+  dark: "system",
 }
 
 function NodeRow({
@@ -59,8 +62,9 @@ function NodeRow({
   onNavigate?: () => void
   prefetchDetail: () => void
 }) {
+  const { t } = useTranslation()
   const m = node.online ? node.metrics : null
-  const statusText = node.online ? (m ? `${Math.round(m.cpu)}%` : "…") : "离线"
+  const statusText = node.online ? (m ? `${Math.round(m.cpu)}%` : "…") : t("status.offline")
 
   return (
     <Link
@@ -71,10 +75,10 @@ function NodeRow({
       onFocus={prefetchDetail}
       title={`${node.name}${node.country ? ` · ${node.country.toUpperCase()}` : ""}`}
       className={cn(
-        "group flex h-8 min-w-0 items-center gap-2 rounded-lg px-2 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group flex h-8 min-w-0 items-center gap-2 rounded-lg px-2 text-xs leading-5 tracking-[-0.005em] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
           ? "bg-(--arc-chrome-glass) font-medium text-(--arc-chrome-fg) shadow-2xs"
-          : "text-(--arc-chrome-fg)/85 hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg)",
+          : "font-normal text-(--arc-chrome-fg)/88 hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg)",
       )}
     >
       <Dot node={node} className="size-2" />
@@ -82,8 +86,8 @@ function NodeRow({
       <span className="min-w-0 flex-1 truncate">{node.name}</span>
       <span
         className={cn(
-          "tnum shrink-0 font-mono text-[11px]",
-          node.online ? "text-(--arc-chrome-muted)" : "text-red-500/80 dark:text-red-400/85",
+          "tnum shrink-0 text-xs font-normal",
+          node.online ? "text-(--arc-chrome-muted)" : "text-destructive/90",
         )}
       >
         {statusText}
@@ -95,7 +99,7 @@ function NodeRow({
 /**
  * Native Arc-style left chrome sidebar:
  * search bar, quick favorite tiles, collapsible group folders in hub order,
- * single-line node tabs, and bottom theme/appearance/admin toolbar.
+ * single-line node tabs, and bottom theme/language/appearance/admin toolbar.
  */
 export function ArcSidebar({
   site,
@@ -110,6 +114,7 @@ export function ArcSidebar({
   onModeChange,
   themeEditorProps,
 }: ArcSidebarProps) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState("")
   const [onlineOnly, setOnlineOnly] = useState(false)
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set())
@@ -160,10 +165,10 @@ export function ArcSidebar({
       nodes: map.get(name)!,
     }))
     if (ungrouped.length > 0) {
-      list.push({ key: "ungrouped", label: "未分组", nodes: ungrouped })
+      list.push({ key: "ungrouped", label: t("common.ungrouped"), nodes: ungrouped })
     }
     return { hasGroups: true, folders: list }
-  }, [nodes, filtered])
+  }, [nodes, filtered, t])
 
   const toggleFolder = (key: string) => {
     setCollapsedFolders((prev) => {
@@ -176,6 +181,12 @@ export function ArcSidebar({
 
   const isSearching = query.trim().length > 0 || onlineOnly
   const ModeIcon = mode === "dark" ? Moon : mode === "light" ? Sun : Monitor
+  const modeTitle =
+    mode === "dark"
+      ? t("appearance.cycleDark")
+      : mode === "light"
+        ? t("appearance.cycleLight")
+        : t("appearance.cycleSystem")
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col text-(--arc-chrome-fg) select-none">
@@ -193,8 +204,8 @@ export function ArcSidebar({
         <button
           type="button"
           onClick={onCollapse}
-          aria-label={isMobileDrawer ? "关闭侧边栏" : "收起侧边栏"}
-          title={isMobileDrawer ? "关闭侧边栏" : "收起侧边栏 (Ctrl+\\)"}
+          aria-label={isMobileDrawer ? t("sidebar.close") : t("sidebar.collapse")}
+          title={isMobileDrawer ? t("sidebar.close") : t("sidebar.collapseShortcut")}
           className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-(--arc-chrome-muted) transition-colors hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg) focus-visible:ring-2 focus-visible:ring-ring outline-none cursor-pointer"
         >
           {isMobileDrawer ? <X className="size-4" /> : <PanelLeftClose className="size-4" />}
@@ -209,15 +220,15 @@ export function ArcSidebar({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索节点、分组、地区…"
-            aria-label="搜索节点"
+            placeholder={t("sidebar.searchPlaceholder")}
+            aria-label={t("sidebar.searchLabel")}
             className="h-8 w-full rounded-lg bg-(--arc-chrome-field) pr-7 pl-8 text-xs text-(--arc-chrome-fg) placeholder:text-(--arc-chrome-muted) outline-none transition-colors focus-visible:bg-(--arc-chrome-glass) focus-visible:ring-2 focus-visible:ring-ring"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
-              aria-label="清空搜索"
+              aria-label={t("sidebar.clearSearch")}
               className="absolute right-1.5 inline-flex size-5 items-center justify-center rounded-md text-(--arc-chrome-muted) hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg) cursor-pointer"
             >
               <X className="size-3" />
@@ -241,16 +252,16 @@ export function ArcSidebar({
         >
           <div className="flex items-center justify-between">
             <LayoutGrid className="size-3.5 text-primary" />
-            <span className="tnum font-mono text-[11px] text-(--arc-chrome-muted)">{nodes.length}</span>
+            <span className="tnum text-xs font-medium text-(--arc-chrome-muted)">{nodes.length}</span>
           </div>
-          <span className="truncate text-xs font-medium">全部概览</span>
+          <span className="truncate text-xs font-medium tracking-[-0.01em]">{t("sidebar.overview")}</span>
         </Link>
 
         <button
           type="button"
           onClick={() => setOnlineOnly((v) => !v)}
           aria-pressed={onlineOnly}
-          title={onlineOnly ? "当前仅显示在线节点，点击显示全部" : "点击仅筛选在线节点"}
+          title={onlineOnly ? t("sidebar.onlineFilterOnTitle") : t("sidebar.onlineFilterOffTitle")}
           className={cn(
             "flex flex-col justify-between gap-1 rounded-xl border border-transparent px-2.5 py-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer",
             onlineOnly
@@ -259,13 +270,13 @@ export function ArcSidebar({
           )}
         >
           <div className="flex items-center justify-between gap-1">
-            <Activity className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="tnum font-mono text-[11px] text-(--arc-chrome-muted)">
+            <Activity className="size-3.5 text-success" />
+            <span className="tnum text-xs font-medium text-(--arc-chrome-muted)">
               {onlineCount}/{nodes.length}
             </span>
           </div>
-          <span className="tnum truncate font-mono text-[11px] text-(--arc-chrome-fg)/90">
-            {onlineOnly ? "仅看在线" : `↓${compact(totalSpeed.rx)}`}
+          <span className="tnum truncate text-xs font-medium tracking-[-0.01em] text-(--arc-chrome-fg)/90">
+            {onlineOnly ? t("sidebar.onlineOnly") : `↓ ${compact(totalSpeed.rx)}/s`}
           </span>
         </button>
       </div>
@@ -274,18 +285,18 @@ export function ArcSidebar({
       <div className="mx-3 h-px shrink-0 bg-(--arc-chrome-border)" aria-hidden="true" />
 
       {/* Scrollable node list / collapsible group folders */}
-      <nav aria-label="服务器列表" className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-2 py-2 space-y-1">
+      <nav aria-label={t("sidebar.serverListNav")} className="scrollbar-none min-h-0 flex-1 overflow-y-auto px-2 py-2 space-y-1">
         {nodes.length === 0 ? (
-          <p className="px-2 py-6 text-center text-xs text-(--arc-chrome-muted)">暂无节点</p>
+          <p className="px-2 py-6 text-center text-xs text-(--arc-chrome-muted)">{t("common.noNodesShort")}</p>
         ) : filtered.length === 0 ? (
           <div className="space-y-2 px-2 py-6 text-center text-xs text-(--arc-chrome-muted)">
-            <p>没有匹配的节点</p>
+            <p>{t("sidebar.noMatches")}</p>
             <button
               type="button"
               onClick={() => { setQuery(""); setOnlineOnly(false) }}
               className="rounded-md bg-(--arc-chrome-field) px-2.5 py-1 text-xs font-medium text-(--arc-chrome-fg) transition-colors hover:bg-(--arc-chrome-glass) cursor-pointer"
             >
-              清除筛选
+              {t("common.clearFilter")}
             </button>
           </div>
         ) : !hasGroups ? (
@@ -310,7 +321,7 @@ export function ArcSidebar({
                   type="button"
                   onClick={() => toggleFolder(folder.key)}
                   aria-expanded={isOpen}
-                  className="flex h-7.5 w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-left text-xs font-medium text-(--arc-chrome-fg)/90 transition-colors hover:bg-(--arc-chrome-hover) outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                  className="flex h-7.5 w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-left text-xs font-medium tracking-[-0.01em] text-(--arc-chrome-muted) transition-colors hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg) outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                 >
                   <ChevronRight
                     className={cn(
@@ -324,7 +335,7 @@ export function ArcSidebar({
                     <Folder className="size-3.5 shrink-0 text-(--arc-chrome-muted)" />
                   )}
                   <span className="min-w-0 flex-1 truncate">{folder.label}</span>
-                  <span className="tnum shrink-0 font-mono text-[10px] text-(--arc-chrome-muted)">
+                  <span className="tnum shrink-0 text-xs font-normal text-(--arc-chrome-muted)/85">
                     {folderOnline}/{folder.nodes.length}
                   </span>
                 </button>
@@ -355,9 +366,19 @@ export function ArcSidebar({
         <div className="flex items-center gap-0.5">
           <button
             type="button"
-            onClick={() => onModeChange(MODE_CYCLE[mode].next)}
-            aria-label={MODE_CYCLE[mode].label}
-            title={MODE_CYCLE[mode].label}
+            onClick={toggleLocale}
+            aria-label={t("common.switchLanguage")}
+            title={t("common.switchLanguage")}
+            className="inline-flex size-8 items-center justify-center rounded-lg text-(--arc-chrome-muted) transition-colors hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg) focus-visible:ring-2 focus-visible:ring-ring outline-none cursor-pointer"
+          >
+            <Languages className="size-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onModeChange(NEXT_MODE[mode])}
+            aria-label={modeTitle}
+            title={modeTitle}
             className="inline-flex size-8 items-center justify-center rounded-lg text-(--arc-chrome-muted) transition-colors hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg) focus-visible:ring-2 focus-visible:ring-ring outline-none cursor-pointer"
           >
             <ModeIcon className="size-3.5" />
@@ -365,8 +386,8 @@ export function ArcSidebar({
 
           <a
             href="/admin/"
-            title={authed ? "后台管理" : "站长登录"}
-            aria-label={authed ? "后台管理" : "站长登录"}
+            title={authed ? t("common.admin") : t("common.login")}
+            aria-label={authed ? t("common.admin") : t("common.login")}
             className="inline-flex size-8 items-center justify-center rounded-lg text-(--arc-chrome-muted) transition-colors hover:bg-(--arc-chrome-hover) hover:text-(--arc-chrome-fg) focus-visible:ring-2 focus-visible:ring-ring outline-none"
           >
             <UserRound className="size-3.5" />

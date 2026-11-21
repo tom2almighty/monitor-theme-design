@@ -33,8 +33,14 @@
   --muted-foreground: oklch(0.6059 0.0075 97.4233);
   --accent: oklch(0.9245 0.0138 92.9892);
   --accent-foreground: oklch(0.2671 0.0196 98.9390);
-  --destructive: oklch(0.1908 0.0020 106.5859);
+  --destructive: oklch(0.577 0.22 27);
   --destructive-foreground: oklch(1.0000 0 0);
+  --success: oklch(0.596 0.145 163.225);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.666 0.179 58.318);
+  --warning-foreground: oklch(0.985 0 0);
+  --info: oklch(0.588 0.158 241.966);
+  --info-foreground: oklch(0.985 0 0);
   --border: oklch(0.8847 0.0069 97.3627);
   --input: oklch(0.7621 0.0156 98.3528);
   --ring: oklch(0.6171 0.1375 39.0427);
@@ -62,6 +68,8 @@
   --arc-chrome-border: rgba(0, 0, 0, 0.09);
 
   --radius: 0.5rem;
+  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Segoe UI Variable Text", "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
 
   --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
   --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
@@ -90,6 +98,12 @@
   --accent-foreground: oklch(0.9663 0.0080 98.8792);
   --destructive: oklch(0.6368 0.2078 25.3313);
   --destructive-foreground: oklch(1.0000 0 0);
+  --success: oklch(0.72 0.16 162);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.78 0.16 70);
+  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.70 0.15 245);
+  --info-foreground: oklch(0.145 0 0);
   --border: oklch(0.3618 0.0101 106.8928);
   --input: oklch(0.4336 0.0113 100.2195);
   --ring: oklch(0.6724 0.1308 38.7559);
@@ -118,6 +132,9 @@
 }
 
 @theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -148,6 +165,12 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -169,11 +192,19 @@
 @layer base {
   * { @apply border-border outline-ring/50; }
   /* Without a reserved gutter, leaving a page taller than the fold widens it. */
-  html { scrollbar-gutter: stable; color-scheme: light; }
+  html {
+    scrollbar-gutter: stable;
+    color-scheme: light;
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
   /* Native scrollbars, form controls and the search field's clear button follow
      the theme rather than the OS: a light scrollbar on the dark page glows. */
   html.dark { color-scheme: dark; }
-  body { @apply bg-background text-foreground antialiased; }
+  body { @apply bg-background text-foreground font-sans antialiased; }
 }
 
 /* Tabular figures keep live numbers from shifting as they update. */

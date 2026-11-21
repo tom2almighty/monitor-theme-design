@@ -12,18 +12,15 @@ import { cn } from "@/lib/utils"
 // the table so the expanded row can import them without importing the table
 // that renders it.
 
-// Emitted as files and fetched on first use, so a page carries only the flags its
-// nodes are in rather than all 271. vite.config.ts keeps the small ones from being
-// inlined into the bundle as data URLs.
-const FLAGS = Object.fromEntries(
-  Object.entries(
-    import.meta.glob<string>("/node_modules/flag-icons/flags/4x3/*.svg", {
-      query: "?url",
-      import: "default",
-      eager: true,
-    }),
-  ).map(([path, url]) => [path.match(/([\w-]+)\.svg$/)![1], url]),
-)
+// Regional indicator conversion: turns any two-letter ISO-3166-1 alpha-2 code
+// (such as "US", "HK", "JP", "EU") into its Unicode flag emoji.
+const COUNTRY_CODE_RE = /^[A-Z]{2}$/
+
+export function countryEmoji(code: string): string {
+  const upper = code.trim().toUpperCase()
+  if (!COUNTRY_CODE_RE.test(upper)) return ""
+  return String.fromCodePoint(upper.charCodeAt(0) + 127397, upper.charCodeAt(1) + 127397)
+}
 
 /** A node that has reported once knows its shape; one that never connected has nothing to show. */
 export function deployed(node: Node) {
@@ -64,11 +61,15 @@ export function Dot({ node, className }: { node: Node; className?: string }) {
 
 export function Flag({ code, className, showCode = true }: { code: string; className?: string; showCode?: boolean }) {
   if (!code) return <span className="text-muted-foreground">—</span>
-  const src = FLAGS[code.toLowerCase()]
+  const emoji = countryEmoji(code)
   return (
     <span className={cn("inline-flex items-center justify-center gap-1", className)}>
-      {src && <img src={src} alt="" className="h-3 w-4 shrink-0 rounded-[2px] object-cover ring-1 ring-foreground/10" />}
-      {showCode && <span className="@max-3xl:hidden uppercase font-mono text-[11px] leading-none">{code}</span>}
+      {emoji && (
+        <span className="flag-emoji shrink-0 text-sm leading-none" aria-hidden="true">
+          {emoji}
+        </span>
+      )}
+      {showCode && <span className="@max-3xl:hidden font-mono text-[11px] leading-none uppercase">{code}</span>}
     </span>
   )
 }

@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { Node } from "@/lib/api"
 import { bytes, compact, daysUntil, distro, duration, FOREVER, monthUsage, pair, percent } from "@/lib/format"
+import { Link } from "@/lib/route"
 import { cn } from "@/lib/utils"
 
 /**
@@ -130,7 +131,13 @@ function Row({ node }: { node: Node }) {
         <TableCell className={cn(COL.name, "text-left font-medium")} title={node.name}>
           <div className="flex items-center gap-1.5 min-w-0">
             <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground/50 transition-transform duration-200", open && "rotate-90 text-foreground")} />
-            <span className="truncate">{node.name}</span>
+            <Link
+              href={`/node/${node.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="truncate transition-colors hover:text-primary hover:underline underline-offset-2"
+            >
+              {node.name}
+            </Link>
           </div>
         </TableCell>
         <TableCell className={COL.location}><Flag code={node.country} /></TableCell>

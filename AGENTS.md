@@ -19,7 +19,7 @@ monitor 探针的公开状态页主题。构建产物是一份纯静态 SPA，hu
 - Tailwind CSS 4（`@tailwindcss/vite`，无 `tailwind.config`）
 - shadcn/ui 风格组件，源码放在 `src/components/ui/`
 - recharts 3 绘制历史图表
-- lucide-react、simple-icons、flag-icons 提供图标
+- lucide-react、simple-icons 提供图标，`country-flag-emoji-polyfill`（自托管 `TwemojiCountryFlags.woff2`）提供国旗展示
 
 不引入新的 UI 框架、图表库或状态管理库。需要 shadcn 组件时用 `pnpm dlx shadcn@latest add <component>` 生成到 `src/components/ui/`，不要手写高仿版。
 
@@ -42,26 +42,28 @@ pnpm preview
 
 ```text
 src/
-├── App.tsx                 应用外壳、导航、主题/深浅色/质感设置、路由分发
+├── App.tsx                 Arc 外壳（彩色渐变画框、侧栏折叠与移动端抽屉、右侧主画布、路由分发）
 ├── components/
-│   ├── MonitorPage.tsx     监控页：上方筛选，下方图表
-│   ├── NodeFilterBar.tsx   监控页筛选栏（搜索、分组、地区、系统、节点选择）
-│   ├── ServerTable.tsx     首页服务器列表、搜索、分组筛选、排序
-│   ├── NodeDetail.tsx      节点图表页与延迟图（recharts 懒加载）
-│   ├── RowDetails.tsx      首页表格展开行
-│   ├── NodeMarks.tsx       状态点、国旗、系统图标、进度条、数字槽位
+│   ├── ArcSidebar.tsx      Arc 侧栏（搜索、概览/在线快捷磁贴、可折叠分组树、单行节点列表、底部工具栏）
+│   ├── ArcThemeEditor.tsx  原生 Arc 主题调色器（2D 点阵色盘、随机配色、5 页色板、波浪强度、颗粒旋钮）
+│   ├── MonitorPage.tsx     单节点详情页：上方硬件/流量/账期概览卡，下方历史图表
+│   ├── ServerTable.tsx     首页全部服务器总览列表、搜索、分组筛选、排序
+│   ├── NodeDetail.tsx      节点历史图表与延迟图（recharts 懒加载）
+│   ├── RowDetails.tsx      首页表格展开行与可复用的节点硬件概览卡
+│   ├── NodeMarks.tsx       状态点、国旗 Emoji、系统图标、进度条、数字槽位
 │   └── ui/                 shadcn 风格基础组件
 ├── lib/
 │   ├── api.ts              Node 类型、safeNodes、useNodes（WebSocket + 轮询兜底）
+│   ├── arc-theme.ts        原生 Arc 色彩引擎（HSB/OKLab、深浅双半面、随机和谐色、语义 Token 派生）
 │   ├── history.ts          历史数据请求、时间范围、60 秒缓存
-│   ├── filters.ts          监控页的节点筛选类型与纯函数
+│   ├── filters.ts          节点筛选类型与纯函数
 │   ├── format.ts           字节、速率、时长、坐标轴刻度等纯函数
 │   ├── prefs.ts            访客本地偏好（localStorage）
 │   ├── config.ts           读取/保存 theme.json 声明的站点设置
 │   ├── route.tsx           `/node/{id}` 路由与客户端 Link
-│   ├── themes.ts           内置配色方案
+│   ├── themes.ts           经典 tweakcn 内置配色方案
 │   └── pings.ts            节点是否有延迟探测的本地记录
-└── index.css               主题 Token、Tailwind 入口、噪点纹理
+└── index.css               主题 Token、Arc Shell 变量、Tailwind 入口、颗粒纹理与国旗字体栈
 ```
 
 ## 路由
@@ -109,18 +111,15 @@ src/
 
 访客自己的偏好（深浅色、图表类型、时间范围、削峰/平滑）放 `localStorage`，不要去写站点设置。优先级从低到高：`theme.json` 默认值、hub 站点设置、访客本地偏好。
 
-## 监控页交互
+## Arc 布局与交互
 
-监控页采用「上方筛选、下方图表」的单列结构，桌面端和移动端一致：
+主题采用原生 Arc 浏览器风格的「彩色外壳 + 左侧导航栏 + 右侧悬浮主画布」App Shell：
 
-- 常用筛选默认展示：搜索、分组标签、仅在线
-- 地区、系统等不常用条件收进「更多筛选」；已生效的条件用可移除的标签回显
-- 分组很多时只列出前几个，其余收进「更多分组」；分组行横向滚动，不能把页面撑宽
-- 节点很多时用下拉选择器配合顶部搜索，不要把所有节点铺成常驻列表
-- 提供上一个/下一个节点按钮；筛选结果为空时显示空状态和清除筛选入口
-- 当前节点被筛掉且仍有结果时，自动切到结果中的第一个节点
-
-图表页不要再用「左侧固定节点列表 + 右侧图表」的双栏结构。侧栏高度跟视口绑定，节点多时会把 footer 顶到首屏之外，移动端也更容易溢出。
+- 桌面端视口定高（`lg:h-dvh lg:overflow-hidden`），左侧栏与右侧主画布各自独立滚动，页脚位于右侧主画布底部；支持点击按钮或 `Ctrl+\` / `Cmd+\` 收起侧栏让主画布铺满窗口
+- 移动端（`< lg`）自动收起为顶部精简栏 + 左侧滑出抽屉，保证无横向溢出
+- 左侧栏负责全局搜索、「仅看在线」筛选、按节点顺序排列的可折叠分组文件夹与单行节点切换
+- 首页 `/` 展示全站汇总与完整服务器状态列表；单节点 `/node/{id}` 展示硬件/流量/账期概览卡 + 历史与延迟图表，顶部提供上一台/下一台快捷切换
+- 右侧主画布默认呈干净高对比 Arc 纸面，用户可通过「画布磨砂透光」滑块自由调节为亚克力磨砂效果
 
 ## 样式规范
 
@@ -130,7 +129,7 @@ src/
 - 类名合并统一用 `cn()`（`clsx` + `tailwind-merge`）
 - 交互元素要有 hover、focus-visible、active、disabled 状态
 - 默认支持亮色、暗色、跟随系统三种模式；首帧脚本在 `index.html` 里
-- 图标用 lucide，品牌图标用 simple-icons，国旗用 flag-icons。不用 Emoji 代替图标
+- 图标用 lucide，品牌图标用 simple-icons，国旗使用 Unicode 区域指示符配合自托管 `country-flag-emoji-polyfill`（`TwemojiCountryFlags.woff2`）。不用 Emoji 代替通用界面图标
 - 移动端必须保证没有横向溢出：长文本 `min-w-0` + `truncate`，多按钮行 `flex-wrap`，标签行 `overflow-x-auto`
 - 源码注释用英文，界面文案用中文
 

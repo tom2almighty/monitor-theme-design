@@ -526,18 +526,20 @@ export function computeArcTokens(
   if (dark) {
     const primary = midToneHex(primarySeed)
     const primaryFg = readableForeground(primary)
-    const cardTint = mixHex("#181820", look.stops[0], 0.32)
-    const popoverTint = mixHex("#1F1E28", look.stops[0], 0.3)
-    const secondary = mixHex("#272631", look.stops[0], 0.28)
-    const muted = mixHex("#22212B", look.stops[0], 0.25)
-    const accentBg = mixHex("#2C2B38", primary, 0.14)
-    const border = mixHex("#383746", primary, 0.14)
-    const input = mixHex("#424152", primary, 0.16)
-    const fg = mixHex("#F3F3F7", tintedLightHex(primarySeed), 0.16)
-    const mutedFg = mixHex("#A4A4B4", tintedLightHex(primarySeed), 0.12)
+    const stage = mixHex("#1B1C20", look.stops[0], 0.14)
+    const cardTint = mixHex("#222329", look.stops[0], 0.18)
+    const popoverTint = mixHex("#202028", look.stops[0], 0.24)
+    const secondary = mixHex("#292A32", look.stops[0], 0.22)
+    const muted = mixHex("#24252D", look.stops[0], 0.18)
+    const accentBg = mixHex("#2E2F3B", primary, 0.14)
+    const border = mixHex("#343642", primary, 0.12)
+    const input = mixHex("#3F4150", primary, 0.14)
+    const fg = mixHex("#EAEBF0", tintedLightHex(primarySeed), 0.1)
+    const mutedFg = mixHex("#9EA0AE", tintedLightHex(primarySeed), 0.1)
 
     return {
       background: look.backgroundColor,
+      stage,
       foreground: fg,
       card: cardTint,
       "card-foreground": fg,
@@ -556,6 +558,12 @@ export function computeArcTokens(
       border,
       input,
       ring: primary,
+      "arc-chrome-fg": "rgba(255, 255, 255, 0.92)",
+      "arc-chrome-muted": "rgba(255, 255, 255, 0.62)",
+      "arc-chrome-glass": "rgba(255, 255, 255, 0.14)",
+      "arc-chrome-hover": "rgba(255, 255, 255, 0.08)",
+      "arc-chrome-field": "rgba(255, 255, 255, 0.09)",
+      "arc-chrome-border": "rgba(255, 255, 255, 0.12)",
       "chart-1": primary,
       "chart-2": "oklch(0.72 0.14 162)",
       "chart-3": "oklch(0.78 0.14 78)",
@@ -564,22 +572,24 @@ export function computeArcTokens(
     }
   }
 
-  // Light mode
+  // Light mode: crisp native Arc paper stage + ink-tinted chrome
   const primary = toolbarHex(look.accent, false)
   const primaryFg = readableForeground(primary)
   const ink = inkHex(look.accent)
-  const fg = mixHex("#18181D", ink, 0.4)
-  const mutedFg = mixHex("#5D5D6C", ink, 0.25)
-  const cardTint = mixHex("#FFFFFF", look.stops[0], 0.08)
-  const popoverTint = mixHex("#FFFFFF", look.stops[0], 0.05)
-  const secondary = mixHex("#F2F2F6", look.stops[0], 0.22)
-  const muted = mixHex("#EFEFF4", look.stops[0], 0.24)
-  const accentBg = mixHex("#ECECF2", look.stops[0], 0.28)
-  const border = mixHex("#DCDCE4", ink, 0.12)
-  const input = mixHex("#CFCFD9", ink, 0.14)
+  const fg = mixHex("#18181D", ink, 0.35)
+  const mutedFg = mixHex("#60626E", ink, 0.2)
+  const stage = mixHex("#FFFFFF", look.stops[0], 0.03)
+  const cardTint = mixHex("#FAFBFD", look.stops[0], 0.06)
+  const popoverTint = mixHex("#FFFFFF", look.stops[0], 0.04)
+  const secondary = mixHex("#F2F3F6", look.stops[0], 0.18)
+  const muted = mixHex("#F0F1F5", look.stops[0], 0.2)
+  const accentBg = mixHex("#ECEEF3", look.stops[0], 0.24)
+  const border = mixHex("#E2E4EA", ink, 0.1)
+  const input = mixHex("#D2D5DE", ink, 0.12)
 
   return {
     background: look.backgroundColor,
+    stage,
     foreground: fg,
     card: cardTint,
     "card-foreground": fg,
@@ -598,10 +608,30 @@ export function computeArcTokens(
     border,
     input,
     ring: primary,
+    "arc-chrome-fg": ink,
+    "arc-chrome-muted": hexToRgba(ink, 0.62),
+    "arc-chrome-glass": "rgba(255, 255, 255, 0.78)",
+    "arc-chrome-hover": "rgba(0, 0, 0, 0.055)",
+    "arc-chrome-field": "rgba(255, 255, 255, 0.48)",
+    "arc-chrome-border": "rgba(0, 0, 0, 0.09)",
     "chart-1": primary,
     "chart-2": "oklch(0.60 0.16 160)",
     "chart-3": "oklch(0.68 0.15 72)",
     "chart-4": "oklch(0.56 0.15 255)",
     "chart-5": "oklch(0.60 0.18 350)",
+  }
+}
+
+/** Companion Arc shell chrome tokens when using classic tweakcn solid presets. */
+export function classicShellTokens(presetVars: Record<string, string>, dark: boolean): Record<string, string> {
+  return {
+    ...presetVars,
+    stage: presetVars.card ?? presetVars.background,
+    "arc-chrome-fg": presetVars.foreground,
+    "arc-chrome-muted": presetVars["muted-foreground"],
+    "arc-chrome-glass": dark ? "rgba(255, 255, 255, 0.10)" : "rgba(255, 255, 255, 0.82)",
+    "arc-chrome-hover": dark ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.045)",
+    "arc-chrome-field": dark ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.04)",
+    "arc-chrome-border": presetVars.border,
   }
 }

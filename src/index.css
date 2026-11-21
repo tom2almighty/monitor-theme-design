@@ -52,6 +52,15 @@
   --sidebar-border: oklch(0.9401 0 0);
   --sidebar-ring: oklch(0.7731 0 0);
 
+  /* Arc shell surfaces & chrome tokens */
+  --stage: oklch(1 0 0);
+  --arc-chrome-fg: var(--foreground);
+  --arc-chrome-muted: var(--muted-foreground);
+  --arc-chrome-glass: rgba(255, 255, 255, 0.78);
+  --arc-chrome-hover: rgba(0, 0, 0, 0.055);
+  --arc-chrome-field: rgba(255, 255, 255, 0.48);
+  --arc-chrome-border: rgba(0, 0, 0, 0.09);
+
   --radius: 0.5rem;
 
   --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
@@ -97,6 +106,15 @@
   --sidebar-accent-foreground: oklch(0.8074 0.0142 93.0137);
   --sidebar-border: oklch(0.9401 0 0);
   --sidebar-ring: oklch(0.7731 0 0);
+
+  /* Arc shell surfaces & chrome tokens (dark) */
+  --stage: oklch(0.205 0.004 285);
+  --arc-chrome-fg: rgba(255, 255, 255, 0.92);
+  --arc-chrome-muted: rgba(255, 255, 255, 0.62);
+  --arc-chrome-glass: rgba(255, 255, 255, 0.14);
+  --arc-chrome-hover: rgba(255, 255, 255, 0.08);
+  --arc-chrome-field: rgba(255, 255, 255, 0.09);
+  --arc-chrome-border: rgba(255, 255, 255, 0.12);
 }
 
 @theme inline {
@@ -186,4 +204,10 @@
   background-image: radial-gradient(circle, color-mix(in oklch, var(--foreground) 20%, transparent) 1px, transparent 1px);
   background-size: 10px 10px;
   background-position: 5px 5px;
+}
+
+/* Country flag emoji font stack: Twemoji polyfill first for Windows Chromium,
+   falling back to crisp native emoji fonts on macOS/iOS/Android/Firefox. */
+.flag-emoji {
+  font-family: "Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 }

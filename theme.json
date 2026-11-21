@@ -20,6 +20,6 @@
       { "value": "default", "label": "shadcn/ui (原生岩灰)" }
     ] },
     { "key": "grain_percent", "type": "number", "label": "默认颗粒强度 (%)", "default": 18, "min": 0, "max": 100, "help": "Arc 胶片颗粒强度（0-100%）" },
-    { "key": "frosted_percent", "type": "number", "label": "默认磨砂透光度 (%)", "default": 28, "min": 0, "max": 100, "help": "卡片亚克力磨砂半透明度（0-100%）" }
+    { "key": "frosted_percent", "type": "number", "label": "默认磨砂透光度 (%)", "default": 6, "min": 0, "max": 100, "help": "右侧主画布磨砂半透明度（0% 为原生 Arc 纯净纸面，调高呈通透玻璃质感）" }
   ]
 }

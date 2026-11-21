@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils"
 
 export type AppearanceMode = "light" | "dark" | "system"
 
-interface ArcThemeEditorProps {
+export interface ArcThemeEditorProps {
   mode: AppearanceMode
   dark: boolean
   onModeChange: (mode: AppearanceMode) => void
@@ -51,6 +51,8 @@ interface ArcThemeEditorProps {
   onResetDefaults: () => void
   authed?: boolean
   onSaveSiteDefault: () => Promise<void>
+  /** Controls popover placement: floating beside the Arc sidebar or below the mobile top bar. */
+  placement?: "sidebar" | "topbar"
 }
 
 const PAD_REACH_RATIO = 0.43
@@ -624,6 +626,7 @@ export function ArcThemeEditor({
   onResetDefaults,
   authed,
   onSaveSiteDefault,
+  placement = "topbar",
 }: ArcThemeEditorProps) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -663,29 +666,67 @@ export function ArcThemeEditor({
     }
   }
 
+  const previewSwatch = arcEnabled
+    ? arcColors.length > 1
+      ? `linear-gradient(135deg, ${arcColors[0]}, ${arcColors[arcColors.length - 1]})`
+      : arcColors[0]
+    : THEMES.find((t) => t.id === themeId)?.accentColor ?? THEMES[0].accentColor
+
+  const panelPosition =
+    placement === "sidebar"
+      ? "left-0 bottom-full mb-2 lg:left-full lg:bottom-0 lg:mb-0 lg:ml-3"
+      : "right-0 top-full mt-2"
+
   return (
     <div className="relative" ref={menuRef}>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label="主题与背景设置"
-        className={cn(
-          "size-8 rounded-md transition-colors cursor-pointer",
-          open ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
-        )}
-        title="主题与背景设置"
-      >
-        <Sparkles className="size-3.5 text-primary" />
-      </Button>
+      {placement === "sidebar" ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label="主题与背景设置"
+          title="主题与背景设置"
+          className={cn(
+            "inline-flex h-8 items-center gap-2 rounded-lg px-2 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer",
+            open
+              ? "bg-(--arc-chrome-glass) text-(--arc-chrome-fg) shadow-2xs"
+              : "text-(--arc-chrome-fg) hover:bg-(--arc-chrome-hover)",
+          )}
+        >
+          <span
+            className="size-4 shrink-0 rounded-full border border-white/80 shadow-xs"
+            style={{ background: previewSwatch }}
+            aria-hidden="true"
+          />
+          <span>主题</span>
+        </button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label="主题与背景设置"
+          className={cn(
+            "size-8 rounded-md transition-colors cursor-pointer",
+            open ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+          )}
+          title="主题与背景设置"
+        >
+          <Sparkles className="size-3.5 text-primary" />
+        </Button>
+      )}
 
       {open && (
         <div
           role="dialog"
           aria-label="主题与背景设置"
-          className="absolute right-0 top-full z-50 mt-2 w-[min(21.5rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 p-3.5 text-popover-foreground shadow-xl backdrop-blur-xl space-y-3.5"
+          className={cn(
+            "absolute z-50 w-[min(21.5rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 p-3.5 text-popover-foreground shadow-xl backdrop-blur-xl space-y-3.5",
+            panelPosition,
+          )}
         >
           {/* Mode toggle: Arc dynamic theme vs classic tweakcn solid presets */}
           <div className="flex items-center justify-between gap-2">
@@ -781,10 +822,10 @@ export function ArcThemeEditor({
             </>
           )}
 
-          {/* Card frosted translucency control */}
+          {/* Stage frosted translucency control */}
           <div className="space-y-1.5 border-t border-border/60 pt-2.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-medium">卡片磨砂透光</span>
+              <span className="font-medium">画布磨砂透光</span>
               <span className="tnum font-mono text-muted-foreground">{frostedPercent}%</span>
             </div>
             <input
@@ -792,7 +833,7 @@ export function ArcThemeEditor({
               min="0"
               max="100"
               step="1"
-              aria-label="卡片磨砂透光"
+              aria-label="画布磨砂透光"
               value={frostedPercent}
               onChange={(e) => onFrostedChange(Number(e.target.value))}
               className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

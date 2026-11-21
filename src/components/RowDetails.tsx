@@ -44,7 +44,7 @@ function Line({ label, className, children }: { label: string; className?: strin
   return (
     <div className="grid min-w-0 grid-cols-[3.8rem_minmax(0,1fr)] items-baseline gap-x-2 text-xs leading-5">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn("tnum break-words font-medium text-foreground", className)}>{children}</span>
+      <span className={cn("tnum wrap-break-word font-medium text-foreground", className)}>{children}</span>
     </div>
   )
 }
@@ -64,7 +64,7 @@ function PeriodMeter({ used, today, limit, title }: { used: number; today: numbe
 }
 
 /** The four cards: the machine, what it is doing, what it has moved, and its term. */
-function Overview({ node }: { node: Node }) {
+export function NodeOverview({ node, showHistoryLink = true }: { node: Node; showHistoryLink?: boolean }) {
   const m = node.online ? node.metrics : null
   const away = node.last_seen ? Date.now() / 1000 - node.last_seen : 0
   const days = node.expires_in !== undefined ? node.expires_in : daysUntil(node.expires_at)
@@ -115,10 +115,12 @@ function Overview({ node }: { node: Node }) {
       <Block
         title="资源监控"
         aside={
-          <Link href={`/node/${node.id}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-            <ChartLine className="size-3" />
-            历史图表
-          </Link>
+          showHistoryLink ? (
+            <Link href={`/node/${node.id}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              <ChartLine className="size-3" />
+              历史图表
+            </Link>
+          ) : null
         }
       >
         {m && <Line label="CPU">{m.cpu.toFixed(1)}%</Line>}
@@ -195,16 +197,16 @@ export function RowDetails({ node }: { node: Node }) {
         </div>
       )}
 
-      {has === undefined && <Skeleton className="h-[320px] rounded-lg" />}
+      {has === undefined && <Skeleton className="h-80 rounded-lg" />}
 
       <div hidden={shown !== "latency"}>
-        <Suspense fallback={has === true ? <Skeleton className="h-[320px] rounded-lg" /> : null}>
-          <Latency id={node.id} card className="h-[280px] @max-3xl:h-[220px]" onKnown={setLearned} />
+        <Suspense fallback={has === true ? <Skeleton className="h-80 rounded-lg" /> : null}>
+          <Latency id={node.id} card className="h-70 @max-3xl:h-55" onKnown={setLearned} />
         </Suspense>
       </div>
 
       <div hidden={shown !== "overview" || has === undefined}>
-        <Overview node={node} />
+        <NodeOverview node={node} />
       </div>
     </div>
   )

@@ -5,20 +5,31 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react"
-import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sun, UserRound, type LucideIcon } from "lucide-react"
+import {
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  Palette,
+  PanelLeftOpen,
+  UserRound,
+} from "lucide-react"
 
+import { ArcSidebar } from "@/components/ArcSidebar"
 import { ArcThemeEditor, type AppearanceMode } from "@/components/ArcThemeEditor"
+import { Dot, Flag } from "@/components/NodeMarks"
 import { ServerTable, ServerTableSkeleton } from "@/components/ServerTable"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { SEGMENT, Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
 import {
   clampPercent,
+  classicShellTokens,
   computeArcLook,
   computeArcTokens,
   DEFAULT_ARC_COLORS,
@@ -27,7 +38,8 @@ import {
   serializeArcColors,
 } from "@/lib/arc-theme"
 import { fields, loadConfig, saveConfig } from "@/lib/config"
-import { Link, useNodeRoute } from "@/lib/route"
+import { usePref } from "@/lib/prefs"
+import { Link, navigate, useNodeRoute } from "@/lib/route"
 import { THEMES } from "@/lib/themes"
 import { cn } from "@/lib/utils"
 // The name, author and repository the footer credits, read from the manifest
@@ -37,8 +49,7 @@ import theme from "../theme.json"
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
 // The chart module is most of the bundle and the list draws no chart. Fetched
-// when the monitor tab is hovered or focused, so the status page does not
-// download it while a reader may never open a chart.
+// when a node link is hovered or focused, so the overview stays light.
 const loadDetail = () => import("@/components/NodeDetail")
 const loadMonitor = () => import("@/components/MonitorPage")
 const MonitorPage = lazy(() => loadMonitor().then((module) => ({ default: module.MonitorPage })))
@@ -55,12 +66,8 @@ const savedMode = (): AppearanceMode => {
 }
 
 /**
- * The visitor's own choice, or the system's while there is none. Only the switch
- * writes the choice down, and "system" is written as no key at all: persisting
- * the system's answer would pin it, leaving a visitor who never touched the
- * switch in whichever mode their system happened to be in that day. The panel at
- * `/admin/` shares this key on one origin and reads it the same way, so it has
- * to hold to the same rule -- one app writing on load pins the others.
+ * The visitor's own choice, or the system's while there is none. Shares the
+ * `theme` key with `/admin/` on the same origin.
  */
 function useTheme() {
   const [mode, setMode] = useState(savedMode)
@@ -73,8 +80,6 @@ function useTheme() {
   )
   const dark = mode === "system" ? system : mode === "dark"
 
-  // Another tab, or the panel open in one, changed the key: follow it, so two
-  // tabs of one site do not disagree.
   useEffect(() => {
     const sync = (e: StorageEvent) => {
       if (e.key === null || e.key === "theme") setMode(savedMode())
@@ -97,13 +102,6 @@ function useTheme() {
     },
   }
 }
-
-// The three positions, the system's between the two appearances it picks from.
-const MODES = [
-  { value: "light" as const, label: <Sun className="size-3.5" />, title: "浅色" },
-  { value: "system" as const, label: <Monitor className="size-3.5" />, title: "跟随系统" },
-  { value: "dark" as const, label: <Moon className="size-3.5" />, title: "深色" },
-]
 
 interface AppearanceValues {
   arcEnabled: boolean
@@ -145,7 +143,7 @@ function readManifestDefaults(): AppearanceValues {
     arcIntensity: clampPercent(Number(manifestDefault("arc_intensity")), DEFAULT_ARC_INTENSITY),
     themeId,
     grainPercent: clampPercent(Number(manifestDefault("grain_percent")), 18),
-    frostedPercent: clampPercent(Number(manifestDefault("frosted_percent")), 28),
+    frostedPercent: clampPercent(Number(manifestDefault("frosted_percent")), 6),
   }
 }
 
@@ -236,13 +234,10 @@ function useAppearanceSettings(dark: boolean) {
     [effective.arcEnabled, effective.arcColors, effective.arcIntensity, dark],
   )
 
-  // Apply semantic CSS tokens and frosted card opacity synchronously before paint.
   useLayoutEffect(() => {
     const vars = effective.arcEnabled
       ? computeArcTokens(effective.arcColors, effective.arcIntensity, dark)
-      : dark
-        ? activePreset.dark
-        : activePreset.light
+      : classicShellTokens(dark ? activePreset.dark : activePreset.light, dark)
     const root = document.documentElement
     for (const [key, val] of Object.entries(vars)) {
       root.style.setProperty(`--${key}`, String(val))
@@ -250,8 +245,13 @@ function useAppearanceSettings(dark: boolean) {
   }, [effective.arcEnabled, effective.arcColors, effective.arcIntensity, activePreset, dark])
 
   useLayoutEffect(() => {
-    const cardAlpha = Math.max(0.08, 1 - (effective.frostedPercent * 0.92) / 100)
-    document.documentElement.style.setProperty("--card-opacity", String(cardAlpha))
+    // Stage paper runs from crisp opaque (1.0 at 0%) to translucent glass (0.24 at 100%).
+    const stageAlpha = Math.max(0.24, 1 - (effective.frostedPercent * 0.76) / 100)
+    // Inner cards stay slightly more opaque than the stage so tables/charts remain crisp.
+    const cardAlpha = Math.max(0.45, 1 - (effective.frostedPercent * 0.55) / 100)
+    const root = document.documentElement
+    root.style.setProperty("--stage-opacity", String(stageAlpha))
+    root.style.setProperty("--card-opacity", String(cardAlpha))
   }, [effective.frostedPercent])
 
   const applyHubConfig = useCallback((cfg: Record<string, unknown>) => {
@@ -295,7 +295,7 @@ function useAppearanceSettings(dark: boolean) {
   }, [])
 
   const setFrostedPercent = useCallback((next: number) => {
-    const clamped = clampPercent(next, 28)
+    const clamped = clampPercent(next, 6)
     writeStorage(STORAGE_KEYS.frostedPercent, String(clamped))
     setOverrides((prev) => ({ ...prev, frostedPercent: clamped }))
   }, [])
@@ -337,52 +337,41 @@ function useAppearanceSettings(dark: boolean) {
   }
 }
 
-/** Back to the top of a long list, once it has been scrolled past. */
-function BackToTop() {
+/** Back-to-top button supporting both desktop inner-stage scroll and mobile window scroll. */
+function BackToTop({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
   const [scrolled, setScrolled] = useState(false)
+
   useEffect(() => {
-    const sync = () => setScrolled(scrollY > 200)
+    const el = containerRef.current
+    const sync = () => {
+      const stageTop = el?.scrollTop ?? 0
+      setScrolled(stageTop > 220 || scrollY > 220)
+    }
     addEventListener("scroll", sync, { passive: true })
-    return () => removeEventListener("scroll", sync)
-  }, [])
+    el?.addEventListener("scroll", sync, { passive: true })
+    return () => {
+      removeEventListener("scroll", sync)
+      el?.removeEventListener("scroll", sync)
+    }
+  }, [containerRef])
+
   if (!scrolled) return null
   return (
     <Button
       variant="outline"
       size="icon"
-      className="fixed right-6 bottom-6 z-30 rounded-full shadow-md max-md:right-4 max-md:bottom-4"
+      className="fixed right-6 bottom-6 z-30 rounded-full bg-popover/90 shadow-md backdrop-blur-md max-md:right-4 max-md:bottom-4"
       title="回到顶部"
       aria-label="回到顶部"
-      onClick={() => scrollTo({ top: 0, behavior: "smooth" })}
+      onClick={() => {
+        containerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+        scrollTo({ top: 0, behavior: "smooth" })
+      }}
     >
       <ArrowUp className="size-4" />
     </Button>
   )
 }
-
-/**
- * One page of the two, in the segmented shape the theme switch beside it wears.
- */
-function NavTab({
-  href, active, icon: Icon, prefetch, children,
-}: { href: string; active: boolean; icon: LucideIcon; prefetch?: () => void; children: string }) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      title={children}
-      onPointerEnter={prefetch}
-      onFocus={prefetch}
-      className={cn(SEGMENT.item, "text-xs max-sm:px-2", active ? SEGMENT.on : SEGMENT.off)}
-    >
-      <Icon className="size-3.5" />
-      <span className="max-sm:sr-only">{children}</span>
-    </Link>
-  )
-}
-
-// Unified layout measure across header, main, and footer: 1280px (max-w-7xl)
-const CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8"
 
 export default function App() {
   const { mode, dark, choose } = useTheme()
@@ -400,16 +389,24 @@ export default function App() {
     resetToSiteDefaults,
     saveAsSiteDefault,
   } = useAppearanceSettings(dark)
+  const [sidebarCollapsed, setSidebarCollapsed] = usePref<boolean>("arc-sidebar-collapsed", false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
   const { nodes, error, closed } = useNodes()
   const open = useNodeRoute()
+  const stageRef = useRef<HTMLDivElement>(null)
 
   const loadMe = useCallback(() => {
     return api<Me>("/me")
       .then((next) => { setMe(next); setMeError("") })
       .catch((e: Error) => setMeError(e.message || "网络错误"))
+  }, [])
+
+  const prefetchDetail = useCallback(() => {
+    void loadMonitor()
+    void loadDetail()
   }, [])
 
   useEffect(() => {
@@ -428,8 +425,35 @@ export default function App() {
     if (me && !me.public_page && !me.authed) location.href = "/admin/"
   }, [me])
 
-  const sorted = [...(nodes ?? [])].sort((a, b) => a.sort - b.sort || a.id - b.id)
-  const selected = sorted.find((n) => n.id === open)
+  // Native Arc shortcut: Cmd+\ or Ctrl+\ toggles the left sidebar on desktop.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault()
+        setSidebarCollapsed(!sidebarCollapsed)
+      } else if (e.key === "Escape" && mobileMenuOpen) {
+        setMobileMenuOpen(false)
+      }
+    }
+    addEventListener("keydown", onKey)
+    return () => removeEventListener("keydown", onKey)
+  }, [sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen])
+
+  // Scroll the right stage back to top when switching servers.
+  useEffect(() => {
+    stageRef.current?.scrollTo({ top: 0 })
+  }, [open])
+
+  const sorted = useMemo(
+    () => [...(nodes ?? [])].sort((a, b) => a.sort - b.sort || a.id - b.id),
+    [nodes],
+  )
+  const selectedIndex = open !== null ? sorted.findIndex((n) => n.id === open) : -1
+  const selected = selectedIndex >= 0 ? sorted[selectedIndex] : undefined
+  const previousNode = selectedIndex > 0 ? sorted[selectedIndex - 1] : null
+  const nextNode = selectedIndex >= 0 && selectedIndex < sorted.length - 1 ? sorted[selectedIndex + 1] : null
+  const onlineCount = useMemo(() => sorted.filter((n) => n.online).length, [sorted])
+
   const site = me?.site_name || "Monitor"
   const notice = typeof config?.notice === "string" ? config.notice.trim() : ""
 
@@ -452,9 +476,31 @@ export default function App() {
 
   if (!me.public_page && !me.authed) return null
 
+  const themeEditorProps = {
+    mode,
+    dark,
+    onModeChange: choose,
+    arcEnabled: effective.arcEnabled,
+    onArcEnabledChange: setArcEnabled,
+    arcColors: effective.arcColors,
+    onArcColorsChange: setArcColors,
+    arcIntensity: effective.arcIntensity,
+    onArcIntensityChange: setArcIntensity,
+    themeId: effective.themeId,
+    onThemeChange: setThemeId,
+    grainPercent: effective.grainPercent,
+    onGrainChange: setGrainPercent,
+    frostedPercent: effective.frostedPercent,
+    onFrostedChange: setFrostedPercent,
+    hasLocalOverrides,
+    onResetDefaults: resetToSiteDefaults,
+    authed: me.authed,
+    onSaveSiteDefault: saveAsSiteDefault,
+  }
+
   return (
-    <div className="relative flex min-h-svh flex-col bg-background">
-      {/* Native Arc multi-point gradient canvas */}
+    <div className="relative min-h-dvh bg-background lg:h-dvh lg:overflow-hidden">
+      {/* Native Arc multi-point gradient shell canvas */}
       {arcLook && (
         <div
           className="pointer-events-none fixed inset-0 z-0 transition-[background-color] duration-300 motion-reduce:transition-none"
@@ -480,138 +526,242 @@ export default function App() {
         />
       )}
 
-      <div className="relative z-10 flex min-h-svh flex-col">
-        {/* Standard full-width sticky navigation bar aligned with page measure */}
-        <header
-          className={cn(
-            "sticky top-0 z-40 w-full border-b border-border/60 backdrop-blur-md",
-            effective.arcEnabled
-              ? "bg-card/75 supports-[backdrop-filter]:bg-card/60"
-              : "bg-background/80 supports-[backdrop-filter]:bg-background/60",
-          )}
-        >
-          <div className={cn(CONTAINER_CLASS, "flex h-14 min-w-0 items-center justify-between gap-4 max-sm:gap-2")}>
-            <div className="flex min-w-0 items-center gap-6 max-sm:gap-3">
-              <Link href="/" className="flex min-w-0 shrink items-center gap-2.5 font-semibold tracking-tight text-foreground transition-colors hover:opacity-90">
-                <img src="/favicon.svg" alt="" className="size-5 shrink-0" />
-                <span className="min-w-0 truncate text-base font-bold">{site}</span>
-              </Link>
-              <nav aria-label="页面" className={cn(SEGMENT.list, "shrink-0")}>
-                <NavTab href="/" active={open === null} icon={House}>首页</NavTab>
-                {sorted.length > 0 && (
-                  <NavTab
-                    href={`/node/${open ?? sorted[0].id}`}
-                    active={open !== null}
-                    icon={ChartLine}
-                    prefetch={() => {
-                      void loadMonitor()
-                      void loadDetail()
-                    }}
-                  >
-                    监控
-                  </NavTab>
-                )}
-              </nav>
-            </div>
+      {/* Arc Window Shell: inset gradient frame around collapsible sidebar + floating right stage */}
+      <div className="relative z-10 flex min-h-dvh flex-col p-2 sm:p-2.5 lg:h-full lg:flex-row lg:gap-2 lg:overflow-hidden">
+        {/* Desktop left Arc sidebar */}
+        {!sidebarCollapsed && (
+          <aside className="hidden lg:flex lg:h-full lg:w-62 lg:shrink-0 lg:flex-col">
+            <ArcSidebar
+              site={site}
+              nodes={sorted}
+              activeNodeId={open}
+              onCollapse={() => setSidebarCollapsed(true)}
+              prefetchDetail={prefetchDetail}
+              authed={me.authed}
+              mode={mode}
+              onModeChange={choose}
+              themeEditorProps={themeEditorProps}
+            />
+          </aside>
+        )}
 
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              <Segmented
-                value={mode}
-                onChange={choose}
-                options={MODES}
-                label="外观"
-                className="max-sm:[&>button]:px-2"
-              />
-              <ArcThemeEditor
-                mode={mode}
-                dark={dark}
-                onModeChange={choose}
-                arcEnabled={effective.arcEnabled}
-                onArcEnabledChange={setArcEnabled}
-                arcColors={effective.arcColors}
-                onArcColorsChange={setArcColors}
-                arcIntensity={effective.arcIntensity}
-                onArcIntensityChange={setArcIntensity}
-                themeId={effective.themeId}
-                onThemeChange={setThemeId}
-                grainPercent={effective.grainPercent}
-                onGrainChange={setGrainPercent}
-                frostedPercent={effective.frostedPercent}
-                onFrostedChange={setFrostedPercent}
-                hasLocalOverrides={hasLocalOverrides}
-                onResetDefaults={resetToSiteDefaults}
+        {/* Mobile slide-over Arc drawer */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-40 flex lg:hidden">
+            <div
+              className="fixed inset-0 bg-black/35 backdrop-blur-xs"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-hidden="true"
+            />
+            <aside
+              role="dialog"
+              aria-label="导航侧边栏"
+              className="relative z-10 flex h-full w-[min(18rem,84vw)] flex-col overflow-hidden border-r border-(--arc-chrome-border) bg-background shadow-2xl"
+              style={
+                arcLook
+                  ? { backgroundColor: arcLook.backgroundColor, backgroundImage: arcLook.backgroundImage }
+                  : undefined
+              }
+            >
+              <ArcSidebar
+                site={site}
+                nodes={sorted}
+                activeNodeId={open}
+                onCollapse={() => setMobileMenuOpen(false)}
+                onNavigate={() => setMobileMenuOpen(false)}
+                isMobileDrawer
+                prefetchDetail={prefetchDetail}
                 authed={me.authed}
-                onSaveSiteDefault={saveAsSiteDefault}
+                mode={mode}
+                onModeChange={choose}
+                themeEditorProps={themeEditorProps}
               />
-              <a
-                href="/admin/"
-                title={me.authed ? "后台" : "登录"}
-                className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <UserRound className="size-4" />
-                <span className="sr-only">{me.authed ? "后台" : "登录"}</span>
-              </a>
-            </div>
+            </aside>
           </div>
-        </header>
+        )}
 
-        {/* Main body with unified container width */}
-        <main className={cn(CONTAINER_CLASS, "min-w-0 flex-1 space-y-6 py-6 max-md:py-4")}>
-          {notice ? (
-            <div className="flex items-start gap-2.5 rounded-lg border border-primary/25 bg-card/80 px-4 py-3 text-sm text-foreground shadow-2xs backdrop-blur-md">
-              <span className="shrink-0 font-semibold text-primary">公告</span>
-              <div className="min-w-0 flex-1 whitespace-pre-wrap">{notice}</div>
-            </div>
-          ) : null}
-
-          {error && (
-            <p role="alert" className="rounded-lg border border-destructive/30 bg-card/85 px-4 py-3 text-sm text-destructive backdrop-blur-md">
-              {error}
-            </p>
-          )}
-
-          {!nodes ? (
-            <ServerTableSkeleton />
-          ) : open === null ? (
-            sorted.length === 0 ? (
-              <Card className="py-16 text-center text-sm text-muted-foreground">还没有节点</Card>
-            ) : (
-              <ServerTable nodes={sorted} />
-            )
-          ) : selected ? (
-            <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-              <MonitorPage nodes={sorted} selected={selected} />
-            </Suspense>
-          ) : (
-            <Card className="py-16 text-center text-sm text-muted-foreground">
-              节点不存在或未公开。<Link href="/" className="font-medium text-foreground hover:underline">返回列表</Link>
-            </Card>
-          )}
-        </main>
-
-        {/* Footer with matching measure */}
-        <footer
+        {/* Right floating Arc Stage Paper Card */}
+        <div
+          ref={stageRef}
+          data-slot="arc-stage"
           className={cn(
-            "border-t border-border/50",
-            effective.arcEnabled ? "bg-card/45 backdrop-blur-xs" : "bg-background/50",
+            "relative flex min-h-[calc(100dvh-1rem)] min-w-0 flex-1 flex-col rounded-2xl border border-border/70 text-foreground shadow-lg lg:h-full lg:min-h-0 lg:overflow-y-auto",
+            effective.frostedPercent > 0 && "backdrop-blur-md",
           )}
+          style={{
+            backgroundColor: "color-mix(in oklch, var(--stage) calc(var(--stage-opacity, 1) * 100%), transparent)",
+          }}
         >
-          <div className={cn(CONTAINER_CLASS, "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-5 text-xs text-muted-foreground")}>
-            <span>
-              {site} · Powered by{" "}
-              <a href="https://github.com/monitor-probe/monitor" target="_blank" rel="noreferrer" className="font-medium hover:text-foreground">
-                monitor
+          {/* Slim sticky Stage Top Bar */}
+          <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-2 rounded-t-2xl border-b border-border/60 bg-background/55 px-3 sm:px-5 backdrop-blur-md">
+            <div className="flex min-w-0 items-center gap-2">
+              {/* Mobile drawer button */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="打开服务器侧边栏"
+                title="打开侧边栏"
+                className="shrink-0 lg:hidden cursor-pointer"
+              >
+                <Menu className="size-4" />
+              </Button>
+
+              {/* Desktop expand button when sidebar is collapsed */}
+              {sidebarCollapsed && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setSidebarCollapsed(false)}
+                  aria-label="展开侧边栏"
+                  title="展开侧边栏 (Ctrl+\\)"
+                  className="hidden shrink-0 lg:inline-flex cursor-pointer"
+                >
+                  <PanelLeftOpen className="size-4" />
+                </Button>
+              )}
+
+              {/* Breadcrumb / active context */}
+              {open === null ? (
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-semibold">{site}</span>
+                  <span className="hidden text-muted-foreground sm:inline">/</span>
+                  <span className="hidden text-xs text-muted-foreground sm:inline">全部概览</span>
+                  {nodes && (
+                    <span className="tnum inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                      {onlineCount}/{sorted.length} 在线
+                    </span>
+                  )}
+                </div>
+              ) : selected ? (
+                <div className="flex min-w-0 items-center gap-1.5 text-sm">
+                  <Link
+                    href="/"
+                    className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    全部概览
+                  </Link>
+                  <span className="shrink-0 text-muted-foreground/60">/</span>
+                  {selected.group && (
+                    <>
+                      <span className="hidden max-w-28 shrink-0 truncate text-xs text-muted-foreground sm:inline">
+                        {selected.group}
+                      </span>
+                      <span className="hidden shrink-0 text-muted-foreground/60 sm:inline">/</span>
+                    </>
+                  )}
+                  <Dot node={selected} className="size-2 shrink-0" />
+                  {selected.country && <Flag code={selected.country} showCode={false} className="shrink-0" />}
+                  <span className="min-w-0 truncate font-semibold">{selected.name}</span>
+                </div>
+              ) : (
+                <div className="flex min-w-0 items-center gap-1.5 text-sm">
+                  <Link href="/" className="text-xs text-muted-foreground hover:text-foreground">
+                    全部概览
+                  </Link>
+                  <span className="text-muted-foreground/60">/</span>
+                  <span className="truncate font-medium">节点不存在</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-1">
+              {/* Prev / Next node buttons on detail view */}
+              {selected && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={!previousNode}
+                    aria-label="上一个节点"
+                    title={previousNode ? `上一个：${previousNode.name}` : "已经是第一个节点"}
+                    onClick={() => previousNode && navigate(`/node/${previousNode.id}`)}
+                    className="cursor-pointer"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={!nextNode}
+                    aria-label="下一个节点"
+                    title={nextNode ? `下一个：${nextNode.name}` : "已经是最后一个节点"}
+                    onClick={() => nextNode && navigate(`/node/${nextNode.id}`)}
+                    className="cursor-pointer"
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Quick theme & admin actions on mobile or when desktop sidebar is collapsed */}
+              <div className={cn("flex items-center gap-1", !sidebarCollapsed && "lg:hidden")}>
+                <ArcThemeEditor {...themeEditorProps} placement="topbar" />
+                <a
+                  href="/admin/"
+                  title={me.authed ? "后台管理" : "站长登录"}
+                  aria-label={me.authed ? "后台管理" : "站长登录"}
+                  className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <UserRound className="size-4" />
+                </a>
+              </div>
+            </div>
+          </header>
+
+          {/* Main stage content */}
+          <main className="mx-auto w-full max-w-6xl min-w-0 flex-1 space-y-5 px-3.5 py-4 sm:px-6 sm:py-5">
+            {notice ? (
+              <div className="flex items-start gap-2.5 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-foreground">
+                <span className="shrink-0 font-semibold text-primary">公告</span>
+                <div className="min-w-0 flex-1 whitespace-pre-wrap">{notice}</div>
+              </div>
+            ) : null}
+
+            {error && (
+              <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+
+            {!nodes ? (
+              <ServerTableSkeleton />
+            ) : open === null ? (
+              sorted.length === 0 ? (
+                <Card className="py-16 text-center text-sm text-muted-foreground">还没有节点</Card>
+              ) : (
+                <ServerTable nodes={sorted} />
+              )
+            ) : selected ? (
+              <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
+                <MonitorPage selected={selected} />
+              </Suspense>
+            ) : (
+              <Card className="py-16 text-center text-sm text-muted-foreground">
+                节点不存在或未公开。<Link href="/" className="font-medium text-foreground hover:underline">返回总览</Link>
+              </Card>
+            )}
+          </main>
+
+          {/* Compact footer inside stage bottom */}
+          <footer className="mt-auto border-t border-border/50 px-4 py-4 sm:px-6">
+            <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+              <span>
+                {site} · Powered by{" "}
+                <a href="https://github.com/monitor-probe/monitor" target="_blank" rel="noreferrer" className="font-medium hover:text-foreground">
+                  monitor
+                </a>
+              </span>
+              <a href={theme.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-foreground">
+                <Palette className="size-3.5" />
+                主题 {theme.name} · {theme.author}
               </a>
-            </span>
-            <a href={theme.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-foreground">
-              <Palette className="size-3.5" />
-              主题 {theme.name} · {theme.author}
-            </a>
-          </div>
-        </footer>
+            </div>
+          </footer>
+        </div>
       </div>
 
-      <BackToTop />
+      <BackToTop containerRef={stageRef} />
     </div>
   )
 }

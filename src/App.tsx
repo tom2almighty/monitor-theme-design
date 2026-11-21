@@ -1,15 +1,34 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sparkles, Sun, UserRound, type LucideIcon } from "lucide-react"
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react"
+import { ArrowUp, ChartLine, House, Monitor, Moon, Palette, Sun, UserRound, type LucideIcon } from "lucide-react"
 
+import { ArcThemeEditor, type AppearanceMode } from "@/components/ArcThemeEditor"
 import { ServerTable, ServerTableSkeleton } from "@/components/ServerTable"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { SEGMENT, Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes } from "@/lib/api"
+import {
+  clampPercent,
+  computeArcLook,
+  computeArcTokens,
+  DEFAULT_ARC_COLORS,
+  DEFAULT_ARC_INTENSITY,
+  parseArcColors,
+  serializeArcColors,
+} from "@/lib/arc-theme"
+import { fields, loadConfig, saveConfig } from "@/lib/config"
 import { Link, useNodeRoute } from "@/lib/route"
 import { THEMES } from "@/lib/themes"
-import { loadConfig, saveConfig } from "@/lib/config"
 import { cn } from "@/lib/utils"
 // The name, author and repository the footer credits, read from the manifest
 // the panel reads, so the two never disagree.
@@ -26,13 +45,11 @@ const MonitorPage = lazy(() => loadMonitor().then((module) => ({ default: module
 
 const DARK_MEDIA = matchMedia("(prefers-color-scheme: dark)")
 
-type Mode = "light" | "dark" | "system"
-
 /**
  * What the key says, read as the pre-paint script in index.html reads it: one of
  * the two names is a choice, anything else is none.
  */
-const savedMode = (): Mode => {
+const savedMode = (): AppearanceMode => {
   const saved = localStorage.getItem("theme")
   return saved === "dark" || saved === "light" ? saved : "system"
 }
@@ -73,7 +90,7 @@ function useTheme() {
   return {
     mode,
     dark,
-    choose: (next: Mode) => {
+    choose: (next: AppearanceMode) => {
       if (next === "system") localStorage.removeItem("theme")
       else localStorage.setItem("theme", next)
       setMode(next)
@@ -88,249 +105,236 @@ const MODES = [
   { value: "dark" as const, label: <Moon className="size-3.5" />, title: "深色" },
 ]
 
+interface AppearanceValues {
+  arcEnabled: boolean
+  arcColors: string[]
+  arcIntensity: number
+  themeId: string
+  grainPercent: number
+  frostedPercent: number
+}
+
+interface VisitorAppearanceOverrides {
+  arcEnabled?: boolean
+  arcColors?: string[]
+  arcIntensity?: number
+  themeId?: string
+  grainPercent?: number
+  frostedPercent?: number
+}
+
+const STORAGE_KEYS = {
+  arcEnabled: "theme-arc-enabled",
+  arcColors: "theme-arc-colors",
+  arcIntensity: "theme-arc-intensity",
+  themeId: "theme-preset",
+  grainPercent: "theme-grain-percent",
+  frostedPercent: "theme-frosted-percent",
+} as const
+
+function manifestDefault(key: string): unknown {
+  return fields.find((f) => f.key === key)?.default
+}
+
+function readManifestDefaults(): AppearanceValues {
+  const rawPreset = manifestDefault("theme_preset")
+  const themeId = typeof rawPreset === "string" && THEMES.some((t) => t.id === rawPreset) ? rawPreset : "claude"
+  return {
+    arcEnabled: manifestDefault("arc_enabled") !== false,
+    arcColors: parseArcColors(manifestDefault("arc_colors"), DEFAULT_ARC_COLORS),
+    arcIntensity: clampPercent(Number(manifestDefault("arc_intensity")), DEFAULT_ARC_INTENSITY),
+    themeId,
+    grainPercent: clampPercent(Number(manifestDefault("grain_percent")), 18),
+    frostedPercent: clampPercent(Number(manifestDefault("frosted_percent")), 28),
+  }
+}
+
+function readVisitorOverrides(): VisitorAppearanceOverrides {
+  const out: VisitorAppearanceOverrides = {}
+  try {
+    const arcEnabled = localStorage.getItem(STORAGE_KEYS.arcEnabled)
+    if (arcEnabled === "true") out.arcEnabled = true
+    else if (arcEnabled === "false") out.arcEnabled = false
+
+    const arcColors = localStorage.getItem(STORAGE_KEYS.arcColors)
+    if (arcColors !== null) out.arcColors = parseArcColors(arcColors, DEFAULT_ARC_COLORS)
+
+    const arcIntensity = localStorage.getItem(STORAGE_KEYS.arcIntensity)
+    if (arcIntensity !== null) {
+      const n = Number(arcIntensity)
+      if (Number.isFinite(n) && n >= 0 && n <= 100) out.arcIntensity = Math.round(n)
+    }
+
+    const preset = localStorage.getItem(STORAGE_KEYS.themeId)
+    if (preset && THEMES.some((t) => t.id === preset)) out.themeId = preset
+
+    const grain = localStorage.getItem(STORAGE_KEYS.grainPercent)
+    if (grain !== null) {
+      const n = Number(grain)
+      if (Number.isFinite(n) && n >= 0 && n <= 100) out.grainPercent = Math.round(n)
+    } else {
+      const legacy = localStorage.getItem("theme-grain")
+      if (legacy === "off") out.grainPercent = 0
+      else if (legacy === "subtle") out.grainPercent = 10
+      else if (legacy === "film") out.grainPercent = 35
+    }
+
+    const frosted = localStorage.getItem(STORAGE_KEYS.frostedPercent)
+    if (frosted !== null) {
+      const n = Number(frosted)
+      if (Number.isFinite(n) && n >= 0 && n <= 100) out.frostedPercent = Math.round(n)
+    }
+  } catch {
+    // Storage disabled: fall back to site defaults.
+  }
+  return out
+}
+
+function writeStorage(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Storage full or disabled: setting still holds for this session.
+  }
+}
+
+function clearVisitorStorage() {
+  try {
+    for (const key of Object.values(STORAGE_KEYS)) {
+      localStorage.removeItem(key)
+    }
+    localStorage.removeItem("theme-grain")
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 /**
- * Hook to manage dynamic tweakcn theme presets at runtime.
+ * Manages appearance settings following monitor's priority order:
+ * theme.json defaults < hub site config < visitor localStorage overrides.
  */
-function useThemePreset(dark: boolean) {
-  const [themeId, setThemeId] = useState<string>(() => {
-    const saved = localStorage.getItem("theme-preset")
-    return THEMES.some((t) => t.id === saved) ? saved! : "claude"
-  })
+function useAppearanceSettings(dark: boolean) {
+  const [siteDefaults, setSiteDefaults] = useState<AppearanceValues>(readManifestDefaults)
+  const [overrides, setOverrides] = useState<VisitorAppearanceOverrides>(readVisitorOverrides)
 
-  const activeTheme = useMemo(() => THEMES.find((t) => t.id === themeId) ?? THEMES[0], [themeId])
+  const effective = useMemo<AppearanceValues>(() => ({
+    arcEnabled: overrides.arcEnabled ?? siteDefaults.arcEnabled,
+    arcColors: overrides.arcColors ?? siteDefaults.arcColors,
+    arcIntensity: overrides.arcIntensity ?? siteDefaults.arcIntensity,
+    themeId: overrides.themeId ?? siteDefaults.themeId,
+    grainPercent: overrides.grainPercent ?? siteDefaults.grainPercent,
+    frostedPercent: overrides.frostedPercent ?? siteDefaults.frostedPercent,
+  }), [overrides, siteDefaults])
 
-  useEffect(() => {
-    const vars = dark ? activeTheme.dark : activeTheme.light
+  const activePreset = useMemo(
+    () => THEMES.find((t) => t.id === effective.themeId) ?? THEMES[0],
+    [effective.themeId],
+  )
+
+  const arcLook = useMemo(
+    () => (effective.arcEnabled ? computeArcLook(effective.arcColors, effective.arcIntensity, dark) : null),
+    [effective.arcEnabled, effective.arcColors, effective.arcIntensity, dark],
+  )
+
+  // Apply semantic CSS tokens and frosted card opacity synchronously before paint.
+  useLayoutEffect(() => {
+    const vars = effective.arcEnabled
+      ? computeArcTokens(effective.arcColors, effective.arcIntensity, dark)
+      : dark
+        ? activePreset.dark
+        : activePreset.light
     const root = document.documentElement
     for (const [key, val] of Object.entries(vars)) {
       root.style.setProperty(`--${key}`, String(val))
     }
-    localStorage.setItem("theme-preset", themeId)
-  }, [activeTheme, dark, themeId])
+  }, [effective.arcEnabled, effective.arcColors, effective.arcIntensity, activePreset, dark])
 
-  return { themeId, setThemeId, activeTheme }
-}
+  useLayoutEffect(() => {
+    const cardAlpha = Math.max(0.08, 1 - (effective.frostedPercent * 0.92) / 100)
+    document.documentElement.style.setProperty("--card-opacity", String(cardAlpha))
+  }, [effective.frostedPercent])
 
-/**
- * Hook to manage Zen Browser dual-parameter texture settings:
- * 1. Grain (Perlin noise intensity, 0-100%)
- * 2. Frosted Blur / Opacity (Container acrylic translucency, 0-100%)
- */
-function useTextureSettings() {
-  const [grainPercent, setGrainPercent] = useState<number>(() => {
-    const saved = localStorage.getItem("theme-grain-percent")
-    if (saved !== null) {
-      const num = Number(saved)
-      if (!Number.isNaN(num) && num >= 0 && num <= 100) return num
-    }
-    const legacy = localStorage.getItem("theme-grain")
-    if (legacy === "off") return 0
-    if (legacy === "subtle") return 10
-    if (legacy === "film") return 35
-    return 16
-  })
+  const applyHubConfig = useCallback((cfg: Record<string, unknown>) => {
+    setSiteDefaults((prev) => ({
+      arcEnabled: typeof cfg.arc_enabled === "boolean" ? cfg.arc_enabled : prev.arcEnabled,
+      arcColors: typeof cfg.arc_colors === "string" ? parseArcColors(cfg.arc_colors, prev.arcColors) : prev.arcColors,
+      arcIntensity: typeof cfg.arc_intensity === "number" ? clampPercent(cfg.arc_intensity, prev.arcIntensity) : prev.arcIntensity,
+      themeId: typeof cfg.theme_preset === "string" && THEMES.some((t) => t.id === cfg.theme_preset) ? cfg.theme_preset : prev.themeId,
+      grainPercent: typeof cfg.grain_percent === "number" ? clampPercent(cfg.grain_percent, prev.grainPercent) : prev.grainPercent,
+      frostedPercent: typeof cfg.frosted_percent === "number" ? clampPercent(cfg.frosted_percent, prev.frostedPercent) : prev.frostedPercent,
+    }))
+  }, [])
 
-  const [frostedPercent, setFrostedPercent] = useState<number>(() => {
-    const saved = localStorage.getItem("theme-frosted-percent")
-    if (saved !== null) {
-      const num = Number(saved)
-      if (!Number.isNaN(num) && num >= 0 && num <= 100) return num
-    }
-    return 20 // Default 20% frosted translucency
-  })
+  const setArcEnabled = useCallback((next: boolean) => {
+    writeStorage(STORAGE_KEYS.arcEnabled, String(next))
+    setOverrides((prev) => ({ ...prev, arcEnabled: next }))
+  }, [])
 
-  useEffect(() => {
-    const root = document.documentElement
-    // Scale card opacity smoothly from 1.0 (0% frosted) down to 0.08 (100% frosted)
-    const cardAlpha = Math.max(0.08, 1 - (frostedPercent * 0.92) / 100)
-    root.style.setProperty("--card-opacity", String(cardAlpha))
-    localStorage.setItem("theme-frosted-percent", String(frostedPercent))
-  }, [frostedPercent])
+  const setArcColors = useCallback((next: string[]) => {
+    const normalized = parseArcColors(next, DEFAULT_ARC_COLORS)
+    writeStorage(STORAGE_KEYS.arcColors, serializeArcColors(normalized))
+    setOverrides((prev) => ({ ...prev, arcColors: normalized }))
+  }, [])
 
-  useEffect(() => {
-    localStorage.setItem("theme-grain-percent", String(grainPercent))
-  }, [grainPercent])
+  const setArcIntensity = useCallback((next: number) => {
+    const clamped = clampPercent(next, DEFAULT_ARC_INTENSITY)
+    writeStorage(STORAGE_KEYS.arcIntensity, String(clamped))
+    setOverrides((prev) => ({ ...prev, arcIntensity: clamped }))
+  }, [])
+
+  const setThemeId = useCallback((next: string) => {
+    if (!THEMES.some((t) => t.id === next)) return
+    writeStorage(STORAGE_KEYS.themeId, next)
+    setOverrides((prev) => ({ ...prev, themeId: next }))
+  }, [])
+
+  const setGrainPercent = useCallback((next: number) => {
+    const clamped = clampPercent(next, 18)
+    writeStorage(STORAGE_KEYS.grainPercent, String(clamped))
+    setOverrides((prev) => ({ ...prev, grainPercent: clamped }))
+  }, [])
+
+  const setFrostedPercent = useCallback((next: number) => {
+    const clamped = clampPercent(next, 28)
+    writeStorage(STORAGE_KEYS.frostedPercent, String(clamped))
+    setOverrides((prev) => ({ ...prev, frostedPercent: clamped }))
+  }, [])
+
+  const resetToSiteDefaults = useCallback(() => {
+    clearVisitorStorage()
+    setOverrides({})
+  }, [])
+
+  const saveAsSiteDefault = useCallback(async () => {
+    await saveConfig({
+      arc_enabled: effective.arcEnabled,
+      arc_colors: serializeArcColors(effective.arcColors),
+      arc_intensity: effective.arcIntensity,
+      theme_preset: effective.themeId,
+      grain_percent: effective.grainPercent,
+      frosted_percent: effective.frostedPercent,
+    })
+    setSiteDefaults(effective)
+    clearVisitorStorage()
+    setOverrides({})
+  }, [effective])
+
+  const hasLocalOverrides = Object.values(overrides).some((v) => v !== undefined)
 
   return {
-    grainPercent,
+    effective,
+    arcLook,
+    hasLocalOverrides,
+    applyHubConfig,
+    setArcEnabled,
+    setArcColors,
+    setArcIntensity,
+    setThemeId,
     setGrainPercent,
-    frostedPercent,
     setFrostedPercent,
+    resetToSiteDefaults,
+    saveAsSiteDefault,
   }
-}
-
-/**
- * Zen Browser-style theme & dual-parameter texture control popover.
- */
-function ThemeSettingsControl({
-  themeId,
-  onThemeChange,
-  grainPercent,
-  onGrainChange,
-  frostedPercent,
-  onFrostedChange,
-  authed,
-}: {
-  themeId: string
-  onThemeChange: (id: string) => void
-  grainPercent: number
-  onGrainChange: (val: number) => void
-  frostedPercent: number
-  onFrostedChange: (val: number) => void
-  authed?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<string | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  const handleSaveDefault = async () => {
-    setSaving(true)
-    setSaveStatus(null)
-    try {
-      await saveConfig({
-        theme_preset: themeId,
-        grain_percent: grainPercent,
-        frosted_percent: frostedPercent,
-      })
-      setSaveStatus("已设为全站默认")
-      setTimeout(() => setSaveStatus(null), 2500)
-    } catch (e: unknown) {
-      setSaveStatus(e instanceof Error ? e.message : "保存失败")
-      setTimeout(() => setSaveStatus(null), 3000)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener("pointerdown", handleClick)
-    return () => document.removeEventListener("pointerdown", handleClick)
-  }, [open])
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "size-8 rounded-md transition-colors",
-          open ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
-        )}
-        title="主题配色与质感设置"
-      >
-        <Sparkles className="size-3.5 text-primary" />
-        <span className="sr-only">主题与质感设置</span>
-      </Button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-xl border border-border/80 bg-popover p-3.5 text-popover-foreground shadow-xl backdrop-blur-md space-y-3.5">
-          {/* Section 1: 主题配色 (tweakcn presets) */}
-          <div>
-            <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
-              <span className="text-xs font-semibold">主题配色 (tweakcn)</span>
-              <span className="text-[10px] text-muted-foreground">实时换肤</span>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {THEMES.map((t) => {
-                const active = themeId === t.id
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => onThemeChange(t.id)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition-all text-left cursor-pointer",
-                      active
-                        ? "border-primary bg-primary/10 text-foreground font-semibold shadow-2xs"
-                        : "border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground",
-                    )}
-                    title={t.desc}
-                  >
-                    <span
-                      className="size-3 rounded-full shrink-0 border border-black/10 dark:border-white/20 shadow-xs"
-                      style={{ backgroundColor: t.accentColor }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium leading-tight">{t.name}</div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Section 2: 参数 1 - 噪点强度 (Grain 0-100%) */}
-          <div className="pt-1 border-t border-border/50 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold">噪点强度 (Zen Grain)</span>
-              <span className="font-mono text-xs font-bold text-primary">{grainPercent}%</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={grainPercent}
-              onChange={(e) => onGrainChange(Number(e.target.value))}
-              className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary focus:outline-hidden"
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-              <span>0% 无</span>
-              <span>20% 推荐</span>
-              <span>50% 明显</span>
-              <span>100% 极强</span>
-            </div>
-          </div>
-
-          {/* Section 3: 参数 2 - 磨砂透光度 (Frosted 0-100%) */}
-          <div className="pt-1 border-t border-border/50 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold">磨砂透光 (Frosted Blur)</span>
-              <span className="font-mono text-xs font-bold text-primary">{frostedPercent}%</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={frostedPercent}
-              onChange={(e) => onFrostedChange(Number(e.target.value))}
-              className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary focus:outline-hidden"
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-              <span>0% 实心</span>
-              <span>20% 磨砂</span>
-              <span>50% 通透</span>
-              <span>100% 极透</span>
-            </div>
-          </div>
-
-          {/* Section 4: 站长保存为站点默认 */}
-          {authed && (
-            <div className="pt-2 border-t border-border/50">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full text-xs h-7.5 cursor-pointer"
-                disabled={saving}
-                onClick={handleSaveDefault}
-              >
-                {saveStatus ?? (saving ? "保存中…" : "保存为全站默认外观")}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
 }
 
 /** Back to the top of a long list, once it has been scrolled past. */
@@ -348,6 +352,7 @@ function BackToTop() {
       size="icon"
       className="fixed right-6 bottom-6 z-30 rounded-full shadow-md max-md:right-4 max-md:bottom-4"
       title="回到顶部"
+      aria-label="回到顶部"
       onClick={() => scrollTo({ top: 0, behavior: "smooth" })}
     >
       <ArrowUp className="size-4" />
@@ -381,8 +386,20 @@ const CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8"
 
 export default function App() {
   const { mode, dark, choose } = useTheme()
-  const { themeId, setThemeId } = useThemePreset(dark)
-  const { grainPercent, setGrainPercent, frostedPercent, setFrostedPercent } = useTextureSettings()
+  const {
+    effective,
+    arcLook,
+    hasLocalOverrides,
+    applyHubConfig,
+    setArcEnabled,
+    setArcColors,
+    setArcIntensity,
+    setThemeId,
+    setGrainPercent,
+    setFrostedPercent,
+    resetToSiteDefaults,
+    saveAsSiteDefault,
+  } = useAppearanceSettings(dark)
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
@@ -399,17 +416,9 @@ export default function App() {
     loadMe()
     loadConfig().then((cfg) => {
       setConfig(cfg)
-      if (!localStorage.getItem("theme-preset") && typeof cfg.theme_preset === "string") {
-        setThemeId(cfg.theme_preset)
-      }
-      if (localStorage.getItem("theme-grain-percent") === null && typeof cfg.grain_percent === "number") {
-        setGrainPercent(cfg.grain_percent)
-      }
-      if (localStorage.getItem("theme-frosted-percent") === null && typeof cfg.frosted_percent === "number") {
-        setFrostedPercent(cfg.frosted_percent)
-      }
+      applyHubConfig(cfg)
     }).catch(() => {})
-  }, [loadMe, setThemeId, setGrainPercent, setFrostedPercent])
+  }, [loadMe, applyHubConfig])
 
   useEffect(() => {
     if (closed) void loadMe()
@@ -445,121 +454,162 @@ export default function App() {
 
   return (
     <div className="relative flex min-h-svh flex-col bg-background">
-      {/* Zen Browser-style tactile grain overlay */}
-      {grainPercent > 0 && (
+      {/* Native Arc multi-point gradient canvas */}
+      {arcLook && (
         <div
-          className="pointer-events-none fixed inset-0 z-50 select-none bg-noise transition-opacity duration-200"
+          className="pointer-events-none fixed inset-0 z-0 transition-[background-color] duration-300 motion-reduce:transition-none"
           style={{
-            opacity: Math.min(1, (grainPercent / 100) * (dark ? 0.95 : 0.88)),
+            backgroundColor: arcLook.backgroundColor,
+            backgroundImage: arcLook.backgroundImage,
           }}
           aria-hidden="true"
         />
       )}
 
-      {/* Standard full-width sticky navigation bar aligned with page measure */}
-      <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
-        <div className={cn(CONTAINER_CLASS, "flex h-14 min-w-0 items-center justify-between gap-4 max-sm:gap-2")}>
-          <div className="flex min-w-0 items-center gap-6 max-sm:gap-3">
-            <Link href="/" className="flex min-w-0 shrink items-center gap-2.5 font-semibold tracking-tight text-foreground transition-colors hover:opacity-90">
-              <img src="/favicon.svg" alt="" className="size-5 shrink-0" />
-              <span className="min-w-0 truncate text-base font-bold">{site}</span>
-            </Link>
-            <nav aria-label="页面" className={cn(SEGMENT.list, "shrink-0")}>
-              <NavTab href="/" active={open === null} icon={House}>首页</NavTab>
-              {sorted.length > 0 && (
-                <NavTab
-                  href={`/node/${open ?? sorted[0].id}`}
-                  active={open !== null}
-                  icon={ChartLine}
-                  prefetch={() => {
-                    void loadMonitor()
-                    void loadDetail()
-                  }}
-                >
-                  监控
-                </NavTab>
-              )}
-            </nav>
+      {/* Arc-style tactile film grain overlay */}
+      {effective.grainPercent > 0 && (
+        <div
+          className={cn(
+            "pointer-events-none fixed inset-0 z-50 select-none transition-opacity duration-200 motion-reduce:transition-none",
+            dark ? "bg-noise-dark" : "bg-noise-light",
+          )}
+          style={{
+            opacity: Math.min(0.24, (effective.grainPercent / 100) * (dark ? 0.2 : 0.22)),
+          }}
+          aria-hidden="true"
+        />
+      )}
+
+      <div className="relative z-10 flex min-h-svh flex-col">
+        {/* Standard full-width sticky navigation bar aligned with page measure */}
+        <header
+          className={cn(
+            "sticky top-0 z-40 w-full border-b border-border/60 backdrop-blur-md",
+            effective.arcEnabled
+              ? "bg-card/75 supports-[backdrop-filter]:bg-card/60"
+              : "bg-background/80 supports-[backdrop-filter]:bg-background/60",
+          )}
+        >
+          <div className={cn(CONTAINER_CLASS, "flex h-14 min-w-0 items-center justify-between gap-4 max-sm:gap-2")}>
+            <div className="flex min-w-0 items-center gap-6 max-sm:gap-3">
+              <Link href="/" className="flex min-w-0 shrink items-center gap-2.5 font-semibold tracking-tight text-foreground transition-colors hover:opacity-90">
+                <img src="/favicon.svg" alt="" className="size-5 shrink-0" />
+                <span className="min-w-0 truncate text-base font-bold">{site}</span>
+              </Link>
+              <nav aria-label="页面" className={cn(SEGMENT.list, "shrink-0")}>
+                <NavTab href="/" active={open === null} icon={House}>首页</NavTab>
+                {sorted.length > 0 && (
+                  <NavTab
+                    href={`/node/${open ?? sorted[0].id}`}
+                    active={open !== null}
+                    icon={ChartLine}
+                    prefetch={() => {
+                      void loadMonitor()
+                      void loadDetail()
+                    }}
+                  >
+                    监控
+                  </NavTab>
+                )}
+              </nav>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <Segmented
+                value={mode}
+                onChange={choose}
+                options={MODES}
+                label="外观"
+                className="max-sm:[&>button]:px-2"
+              />
+              <ArcThemeEditor
+                mode={mode}
+                dark={dark}
+                onModeChange={choose}
+                arcEnabled={effective.arcEnabled}
+                onArcEnabledChange={setArcEnabled}
+                arcColors={effective.arcColors}
+                onArcColorsChange={setArcColors}
+                arcIntensity={effective.arcIntensity}
+                onArcIntensityChange={setArcIntensity}
+                themeId={effective.themeId}
+                onThemeChange={setThemeId}
+                grainPercent={effective.grainPercent}
+                onGrainChange={setGrainPercent}
+                frostedPercent={effective.frostedPercent}
+                onFrostedChange={setFrostedPercent}
+                hasLocalOverrides={hasLocalOverrides}
+                onResetDefaults={resetToSiteDefaults}
+                authed={me.authed}
+                onSaveSiteDefault={saveAsSiteDefault}
+              />
+              <a
+                href="/admin/"
+                title={me.authed ? "后台" : "登录"}
+                className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <UserRound className="size-4" />
+                <span className="sr-only">{me.authed ? "后台" : "登录"}</span>
+              </a>
+            </div>
           </div>
+        </header>
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <Segmented
-              value={mode}
-              onChange={choose}
-              options={MODES}
-              label="外观"
-              className="max-sm:[&>button]:px-2"
-            />
-            <ThemeSettingsControl
-              themeId={themeId}
-              onThemeChange={setThemeId}
-              grainPercent={grainPercent}
-              onGrainChange={setGrainPercent}
-              frostedPercent={frostedPercent}
-              onFrostedChange={setFrostedPercent}
-              authed={me.authed}
-            />
-            <a
-              href="/admin/"
-              title={me.authed ? "后台" : "登录"}
-              className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-            >
-              <UserRound className="size-4" />
-              <span className="sr-only">{me.authed ? "后台" : "登录"}</span>
-            </a>
-          </div>
-        </div>
-      </header>
+        {/* Main body with unified container width */}
+        <main className={cn(CONTAINER_CLASS, "min-w-0 flex-1 space-y-6 py-6 max-md:py-4")}>
+          {notice ? (
+            <div className="flex items-start gap-2.5 rounded-lg border border-primary/25 bg-card/80 px-4 py-3 text-sm text-foreground shadow-2xs backdrop-blur-md">
+              <span className="shrink-0 font-semibold text-primary">公告</span>
+              <div className="min-w-0 flex-1 whitespace-pre-wrap">{notice}</div>
+            </div>
+          ) : null}
 
-      {/* Main body with unified container width */}
-      <main className={cn(CONTAINER_CLASS, "min-w-0 flex-1 space-y-6 py-6 max-md:py-4")}>
-        {notice ? (
-          <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground shadow-2xs">
-            <span className="font-semibold text-primary shrink-0">公告</span>
-            <div className="min-w-0 flex-1 whitespace-pre-wrap">{notice}</div>
-          </div>
-        ) : null}
+          {error && (
+            <p role="alert" className="rounded-lg border border-destructive/30 bg-card/85 px-4 py-3 text-sm text-destructive backdrop-blur-md">
+              {error}
+            </p>
+          )}
 
-        {error && (
-          <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-
-        {!nodes ? (
-          <ServerTableSkeleton />
-        ) : open === null ? (
-          sorted.length === 0 ? (
-            <Card className="py-16 text-center text-sm text-muted-foreground">还没有节点</Card>
+          {!nodes ? (
+            <ServerTableSkeleton />
+          ) : open === null ? (
+            sorted.length === 0 ? (
+              <Card className="py-16 text-center text-sm text-muted-foreground">还没有节点</Card>
+            ) : (
+              <ServerTable nodes={sorted} />
+            )
+          ) : selected ? (
+            <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+              <MonitorPage nodes={sorted} selected={selected} />
+            </Suspense>
           ) : (
-            <ServerTable nodes={sorted} />
-          )
-        ) : selected ? (
-          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-            <MonitorPage nodes={sorted} selected={selected} />
-          </Suspense>
-        ) : (
-          <Card className="py-16 text-center text-sm text-muted-foreground">
-            节点不存在或未公开。<Link href="/" className="font-medium text-foreground hover:underline">返回列表</Link>
-          </Card>
-        )}
-      </main>
+            <Card className="py-16 text-center text-sm text-muted-foreground">
+              节点不存在或未公开。<Link href="/" className="font-medium text-foreground hover:underline">返回列表</Link>
+            </Card>
+          )}
+        </main>
 
-      {/* Footer with matching measure */}
-      <footer className="border-t border-border/60 bg-background/50">
-        <div className={cn(CONTAINER_CLASS, "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-5 text-xs text-muted-foreground")}>
-          <span>
-            {site} · Powered by{" "}
-            <a href="https://github.com/monitor-probe/monitor" target="_blank" rel="noreferrer" className="font-medium hover:text-foreground">
-              monitor
+        {/* Footer with matching measure */}
+        <footer
+          className={cn(
+            "border-t border-border/50",
+            effective.arcEnabled ? "bg-card/45 backdrop-blur-xs" : "bg-background/50",
+          )}
+        >
+          <div className={cn(CONTAINER_CLASS, "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-5 text-xs text-muted-foreground")}>
+            <span>
+              {site} · Powered by{" "}
+              <a href="https://github.com/monitor-probe/monitor" target="_blank" rel="noreferrer" className="font-medium hover:text-foreground">
+                monitor
+              </a>
+            </span>
+            <a href={theme.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-foreground">
+              <Palette className="size-3.5" />
+              主题 {theme.name} · {theme.author}
             </a>
-          </span>
-          <a href={theme.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-foreground">
-            <Palette className="size-3.5" />
-            主题 {theme.name} · {theme.author}
-          </a>
-        </div>
-      </footer>
+          </div>
+        </footer>
+      </div>
 
       <BackToTop />
     </div>

@@ -1,21 +1,25 @@
 {
   "name": "monitor-theme-design",
   "short": "Design",
-  "description": "Fork 自 stqfdyr/monitor-theme-serverstatus，融合 tweakcn 精选配色与 Zen Browser 噪点磨砂质感的现代化监控主题，支持深浅模式、实时换肤与无级质感微调",
+  "description": "Fork 自 stqfdyr/monitor-theme-serverstatus，融合原生 Arc 自由调色背景、tweakcn 精选配色与磨砂颗粒质感的现代化监控主题，支持深浅模式、实时换肤与无级质感微调",
   "version": "2.1.1",
   "author": "tom2almighty",
   "url": "https://github.com/tom2almighty/monitor-theme-design",
   "config": [
     { "type": "title", "label": "公告" },
     { "key": "notice", "type": "text", "label": "站点公告", "default": "", "help": "显示在首页顶部，纯文本展示，留空不显示" },
-    { "type": "title", "label": "默认外观" },
-    { "key": "theme_preset", "type": "select", "label": "默认配色方案", "default": "claude", "options": [
+    { "type": "title", "label": "Arc 主题背景" },
+    { "key": "arc_enabled", "type": "boolean", "label": "启用 Arc 主题背景", "default": true, "help": "开启后使用原生 Arc 多色渐变与动态强调色；关闭后使用下方经典纯色方案" },
+    { "key": "arc_colors", "type": "string", "label": "Arc 默认配色", "default": "#6CBAD9,#7F7EDC", "help": "1 至 3 个十六进制色值，逗号分隔（如 #6CBAD9,#7F7EDC）；建议在公开页右上角调色盘实时调整后保存" },
+    { "key": "arc_intensity", "type": "number", "label": "Arc 背景强度 (%)", "default": 75, "min": 0, "max": 100, "help": "Arc 背景显色浓度（0-100%）" },
+    { "type": "title", "label": "经典配色与质感" },
+    { "key": "theme_preset", "type": "select", "label": "默认经典配色方案", "default": "claude", "options": [
       { "value": "claude", "label": "Claude (暖陶)" },
       { "value": "vercel", "label": "Vercel (极简黑白)" },
       { "value": "twitter", "label": "Twitter (经典微蓝)" },
       { "value": "default", "label": "shadcn/ui (原生岩灰)" }
     ] },
-    { "key": "grain_percent", "type": "number", "label": "默认噪点强度 (%)", "default": 16, "min": 0, "max": 100, "help": "Zen Browser 质感噪点颗粒强度（0-100%）" },
-    { "key": "frosted_percent", "type": "number", "label": "默认磨砂透光度 (%)", "default": 20, "min": 0, "max": 100, "help": "卡片亚克力磨砂半透明度（0-100%）" }
+    { "key": "grain_percent", "type": "number", "label": "默认颗粒强度 (%)", "default": 18, "min": 0, "max": 100, "help": "Arc 胶片颗粒强度（0-100%）" },
+    { "key": "frosted_percent", "type": "number", "label": "默认磨砂透光度 (%)", "default": 28, "min": 0, "max": 100, "help": "卡片亚克力磨砂半透明度（0-100%）" }
   ]
 }

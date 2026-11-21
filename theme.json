@@ -2,7 +2,7 @@
   "name": "monitor-theme-design",
   "short": "Design",
   "description": "Arc 风格公开状态页主题：多点渐变外框与可折叠侧栏、动态衍生图表配色、胶片颗粒与磨砂画布调节，以及集群遥测总览与单节点历史延迟监控",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "author": "tom2almighty",
   "url": "https://github.com/tom2almighty/monitor-theme-design",
   "config": [

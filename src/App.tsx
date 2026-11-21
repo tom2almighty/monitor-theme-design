@@ -459,10 +459,19 @@ export default function App() {
       )}
 
       {/* Arc Window Shell: inset gradient frame around collapsible sidebar + floating right stage */}
-      <div className="relative z-10 flex min-h-dvh flex-col p-2 sm:p-2.5 lg:h-full lg:flex-row lg:gap-2 lg:overflow-hidden">
-        {/* Desktop left Arc sidebar */}
-        {!sidebarCollapsed && (
-          <aside className="hidden lg:flex lg:h-full lg:w-62 lg:shrink-0 lg:flex-col">
+      <div className="relative z-10 flex min-h-dvh flex-col p-2 sm:p-2.5 lg:h-full lg:flex-row lg:overflow-hidden">
+        {/* Desktop left Arc sidebar with smooth fade & width collapse */}
+        <aside
+          aria-hidden={sidebarCollapsed}
+          inert={sidebarCollapsed || undefined}
+          className={cn(
+            "hidden lg:relative lg:z-40 lg:flex lg:h-full lg:shrink-0 lg:flex-col transition-[width,margin,opacity] duration-200 ease-out motion-reduce:transition-none",
+            sidebarCollapsed
+              ? "pointer-events-none lg:mr-0 lg:w-0 lg:overflow-hidden opacity-0"
+              : "lg:mr-2 lg:w-62 lg:overflow-visible opacity-100",
+          )}
+        >
+          <div className="flex h-full min-h-0 w-62 flex-col">
             <ArcSidebar
               site={site}
               nodes={sorted}
@@ -474,39 +483,45 @@ export default function App() {
               onModeChange={choose}
               themeEditorProps={themeEditorProps}
             />
-          </aside>
-        )}
-
-        {/* Mobile slide-over Arc drawer */}
-        {mobileMenuOpen && (
-          <div className="fixed inset-0 z-40 flex lg:hidden">
-            <div
-              className="fixed inset-0 bg-black/35 backdrop-blur-xs"
-              onClick={() => setMobileMenuOpen(false)}
-              aria-hidden="true"
-            />
-            <aside
-              role="dialog"
-              aria-label={t("sidebar.title")}
-              className="relative z-10 flex h-full w-[min(18rem,84vw)] flex-col overflow-hidden border-r border-(--arc-chrome-border) bg-background shadow-2xl"
-              style={{ backgroundColor: arcLook.backgroundColor, backgroundImage: arcLook.backgroundImage }}
-            >
-              <ArcSidebar
-                site={site}
-                nodes={sorted}
-                activeNodeId={open}
-                onCollapse={() => setMobileMenuOpen(false)}
-                onNavigate={() => setMobileMenuOpen(false)}
-                isMobileDrawer
-                prefetchDetail={prefetchDetail}
-                authed={me.authed}
-                mode={mode}
-                onModeChange={choose}
-                themeEditorProps={themeEditorProps}
-              />
-            </aside>
           </div>
-        )}
+        </aside>
+
+        {/* Mobile fade-in/out Arc drawer */}
+        <div
+          aria-hidden={!mobileMenuOpen}
+          inert={!mobileMenuOpen || undefined}
+          className={cn(
+            "fixed inset-0 z-40 flex transition-opacity duration-200 ease-out motion-reduce:transition-none lg:hidden",
+            mobileMenuOpen ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+        >
+          <div
+            className="fixed inset-0 bg-black/35 backdrop-blur-xs"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <aside
+            role="dialog"
+            aria-modal={mobileMenuOpen || undefined}
+            aria-label={t("sidebar.title")}
+            className="relative z-10 flex h-full w-[min(18rem,84vw)] flex-col overflow-hidden border-r border-(--arc-chrome-border) bg-background shadow-2xl"
+            style={{ backgroundColor: arcLook.backgroundColor, backgroundImage: arcLook.backgroundImage }}
+          >
+            <ArcSidebar
+              site={site}
+              nodes={sorted}
+              activeNodeId={open}
+              onCollapse={() => setMobileMenuOpen(false)}
+              onNavigate={() => setMobileMenuOpen(false)}
+              isMobileDrawer
+              prefetchDetail={prefetchDetail}
+              authed={me.authed}
+              mode={mode}
+              onModeChange={choose}
+              themeEditorProps={themeEditorProps}
+            />
+          </aside>
+        </div>
 
         {/* Right floating Arc Stage */}
         <div

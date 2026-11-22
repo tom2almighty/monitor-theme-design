@@ -23,6 +23,7 @@ import {
 
 import { ArcSidebar } from "@/components/ArcSidebar"
 import { ArcThemeEditor, type AppearanceMode } from "@/components/ArcThemeEditor"
+import { BrandMark } from "@/components/BrandMark"
 import { Dot, Flag } from "@/components/NodeMarks"
 import { OverviewDashboard, OverviewSkeleton } from "@/components/OverviewDashboard"
 import { Button } from "@/components/ui/button"
@@ -329,7 +330,13 @@ export default function App() {
     saveAsSiteDefault,
   } = useAppearanceSettings(dark)
   const [sidebarCollapsed, setSidebarCollapsed] = usePref<boolean>("arc-sidebar-collapsed", false)
+  const [sidebarSettled, setSidebarSettled] = useState(!sidebarCollapsed)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const updateSidebarCollapsed = useCallback((next: boolean) => {
+    setSidebarSettled(false)
+    setSidebarCollapsed(next)
+  }, [setSidebarCollapsed])
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
@@ -364,19 +371,25 @@ export default function App() {
     if (me && !me.public_page && !me.authed) location.href = "/admin/"
   }, [me])
 
+  useEffect(() => {
+    if (sidebarCollapsed) return
+    const timer = setTimeout(() => setSidebarSettled(true), 320)
+    return () => clearTimeout(timer)
+  }, [sidebarCollapsed])
+
   // Native Arc shortcut: Cmd+\ or Ctrl+\ toggles the left sidebar on desktop.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
         e.preventDefault()
-        setSidebarCollapsed(!sidebarCollapsed)
+        updateSidebarCollapsed(!sidebarCollapsed)
       } else if (e.key === "Escape" && mobileMenuOpen) {
         setMobileMenuOpen(false)
       }
     }
     addEventListener("keydown", onKey)
     return () => removeEventListener("keydown", onKey)
-  }, [sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen])
+  }, [sidebarCollapsed, updateSidebarCollapsed, mobileMenuOpen])
 
   useEffect(() => {
     stageRef.current?.scrollTo({ top: 0 })
@@ -460,23 +473,33 @@ export default function App() {
 
       {/* Arc Window Shell: inset gradient frame around collapsible sidebar + floating right stage */}
       <div className="relative z-10 flex min-h-dvh flex-col p-2 sm:p-2.5 lg:h-full lg:flex-row lg:overflow-hidden">
-        {/* Desktop left Arc sidebar with smooth fade & width collapse */}
+        {/* Desktop left Arc sidebar: smooth width/margin + subtle fade/glide, overflow unlocks once settled */}
         <aside
           aria-hidden={sidebarCollapsed}
           inert={sidebarCollapsed || undefined}
+          onTransitionEnd={(e) => {
+            if (e.target === e.currentTarget && e.propertyName === "width" && !sidebarCollapsed) {
+              setSidebarSettled(true)
+            }
+          }}
           className={cn(
-            "hidden lg:relative lg:z-40 lg:flex lg:h-full lg:shrink-0 lg:flex-col transition-[width,margin,opacity] duration-200 ease-out motion-reduce:transition-none",
+            "hidden lg:relative lg:z-40 lg:flex lg:h-full lg:shrink-0 lg:flex-col will-change-[width] transition-[width,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
             sidebarCollapsed
-              ? "pointer-events-none lg:mr-0 lg:w-0 lg:overflow-hidden opacity-0"
-              : "lg:mr-2 lg:w-62 lg:overflow-visible opacity-100",
+              ? "pointer-events-none lg:mr-0 lg:w-0 lg:overflow-hidden"
+              : cn("lg:mr-2 lg:w-62", sidebarSettled ? "lg:overflow-visible" : "lg:overflow-hidden"),
           )}
         >
-          <div className="flex h-full min-h-0 w-62 flex-col">
+          <div
+            className={cn(
+              "flex h-full min-h-0 w-62 flex-col transition-[opacity,transform] duration-260 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              sidebarCollapsed ? "opacity-0 -translate-x-2" : "opacity-100 translate-x-0",
+            )}
+          >
             <ArcSidebar
               site={site}
               nodes={sorted}
               activeNodeId={open}
-              onCollapse={() => setSidebarCollapsed(true)}
+              onCollapse={() => updateSidebarCollapsed(true)}
               prefetchDetail={prefetchDetail}
               authed={me.authed}
               mode={mode}
@@ -486,17 +509,20 @@ export default function App() {
           </div>
         </aside>
 
-        {/* Mobile fade-in/out Arc drawer */}
+        {/* Mobile fade + gentle glide Arc drawer */}
         <div
           aria-hidden={!mobileMenuOpen}
           inert={!mobileMenuOpen || undefined}
           className={cn(
-            "fixed inset-0 z-40 flex transition-opacity duration-200 ease-out motion-reduce:transition-none lg:hidden",
-            mobileMenuOpen ? "opacity-100" : "pointer-events-none opacity-0",
+            "fixed inset-0 z-40 flex lg:hidden",
+            !mobileMenuOpen && "pointer-events-none",
           )}
         >
           <div
-            className="fixed inset-0 bg-black/35 backdrop-blur-xs"
+            className={cn(
+              "fixed inset-0 bg-black/35 backdrop-blur-xs transition-opacity duration-250 ease-out motion-reduce:transition-none",
+              mobileMenuOpen ? "opacity-100" : "opacity-0",
+            )}
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
@@ -504,7 +530,10 @@ export default function App() {
             role="dialog"
             aria-modal={mobileMenuOpen || undefined}
             aria-label={t("sidebar.title")}
-            className="relative z-10 flex h-full w-[min(18rem,84vw)] flex-col overflow-hidden border-r border-(--arc-chrome-border) bg-background shadow-2xl"
+            className={cn(
+              "relative z-10 flex h-full w-[min(18rem,84vw)] flex-col overflow-hidden border-r border-(--arc-chrome-border) bg-background shadow-2xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              mobileMenuOpen ? "translate-x-0 opacity-100" : "-translate-x-5 opacity-0",
+            )}
             style={{ backgroundColor: arcLook.backgroundColor, backgroundImage: arcLook.backgroundImage }}
           >
             <ArcSidebar
@@ -554,21 +583,29 @@ export default function App() {
                 <Menu className="size-4" />
               </Button>
 
-              {sidebarCollapsed && (
+              <div
+                className={cn(
+                  "hidden shrink-0 overflow-hidden transition-[width,opacity,margin] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none lg:flex",
+                  sidebarCollapsed ? "w-8 opacity-100" : "pointer-events-none -mr-2 w-0 opacity-0",
+                )}
+                aria-hidden={!sidebarCollapsed}
+                inert={!sidebarCollapsed || undefined}
+              >
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => setSidebarCollapsed(false)}
+                  onClick={() => updateSidebarCollapsed(false)}
                   aria-label={t("sidebar.expand")}
                   title={t("sidebar.expandShortcut")}
-                  className="hidden shrink-0 lg:inline-flex cursor-pointer"
+                  className="shrink-0 cursor-pointer"
                 >
                   <PanelLeftOpen className="size-4" />
                 </Button>
-              )}
+              </div>
 
               {open === null ? (
                 <div className="flex min-w-0 items-center gap-2">
+                  <BrandMark className={cn("size-4.5 shrink-0", !sidebarCollapsed && "lg:hidden")} />
                   <span className="truncate text-sm font-semibold">{site}</span>
                   <span className="hidden text-muted-foreground/60 sm:inline">/</span>
                   <span className="hidden text-xs font-medium text-muted-foreground sm:inline">{t("overview.title")}</span>

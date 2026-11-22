@@ -46,6 +46,7 @@ src/
 ├── components/
 │   ├── ArcSidebar.tsx      Arc 侧栏（搜索、概览/在线快捷磁贴、可折叠分组树、单行节点列表、底部工具栏）
 │   ├── ArcThemeEditor.tsx  Arc 主题调色器（2D 点阵色盘、随机配色、5 页色板、波浪强度、颗粒旋钮、磨砂透光）
+│   ├── BrandMark.tsx       动态跟随 Arc 配色的顶部品牌 Logo（与 public/favicon.svg 同源设计）
 │   ├── ChartKit.tsx        统一图表基础层（ChartPanel、ChartLegend、磨砂 ChartTooltip、统一网格与坐标轴规范）
 │   ├── OverviewDashboard.tsx 首页 `/` 集群遥测总览（分组筛选 + 4 KPI 卡 + 4 实时图表）
 │   ├── OverviewCharts.tsx  首页实时图表组（节点负载对比、实时带宽趋势、本期流量排行、地区分布环图）

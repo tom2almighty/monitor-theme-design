@@ -40,6 +40,7 @@ import {
   compact,
   cpuName,
   despike,
+  downsampleSeries,
   ewma,
   FOREVER,
   monthUsage,
@@ -57,7 +58,14 @@ import { knownPing, recordPing } from "@/lib/pings"
 import { usePref } from "@/lib/prefs"
 import { cn } from "@/lib/utils"
 
-const SERIES = { dot: false as const, strokeWidth: 2, isAnimationActive: false }
+const SERIES = {
+  dot: false as const,
+  strokeLinejoin: "round" as const,
+  strokeLinecap: "round" as const,
+  isAnimationActive: false,
+}
+const METRIC_PLOT_POINTS = 160
+const METRIC_KEYS = ["cpu", "mem_used", "disk_used", "net_rx", "net_tx"] as const
 const Y_WIDTH = 64
 
 type Fetched = { key: string; hours: number; data: History; failed: string }
@@ -234,6 +242,8 @@ export function Latency({
 
   const last = pingRows.length - 1
   const [from, to] = zoom?.of === data ? zoom.range.map((i) => Math.min(i, last)) : [0, last]
+  const visiblePingCount = Math.max(0, to - from + 1)
+  const pingStrokeWidth = visiblePingCount > 420 ? 1.15 : visiblePingCount > 200 ? 1.35 : 1.65
   const drawn = (taskId: number) => `${despiked ? (smoothed ? "f" : "s") : smoothed ? "e" : "t"}${taskId}`
 
   return (
@@ -325,7 +335,7 @@ export function Latency({
           {shownProbes.length === 0 ? (
             <p className="py-8 text-center text-sm">{t("charts.noProbeSelected")}</p>
           ) : (
-            <ResponsiveContainer>
+            <ResponsiveContainer debounce={140}>
               <ComposedChart data={pingRows} margin={{ top: 6, right: 8, left: -6, bottom: 0 }}>
                 <CartesianGrid {...CHART_GRID} />
                 <XAxis {...timeAxis(pingRows, hours, lang, from, to)} />
@@ -380,6 +390,7 @@ export function Latency({
                       dataKey={drawn(s.id)}
                       name={s.name}
                       stroke={stroke}
+                      strokeWidth={pingStrokeWidth}
                       {...SERIES}
                       activeDot={{ ...CHART_ACTIVE_DOT, fill: stroke }}
                       connectNulls
@@ -478,6 +489,14 @@ export function NodeDetail({ node }: { node: Node }) {
     () => (data?.metrics ?? []).map((row) => ({ ...row, ts: row.ts * 1_000 })),
     [data],
   )
+
+  // Downsample dense multi-hour/multi-day series for crisp, non-overlapping strokes
+  // while keeping 1h raw and computing peaks/averages from the full raw data.
+  const plotMetrics = useMemo(
+    () => downsampleSeries(metricRows, METRIC_PLOT_POINTS, METRIC_KEYS),
+    [metricRows],
+  )
+  const metricStrokeWidth = safeHours <= 1 ? 1.75 : safeHours <= 6 ? 1.5 : 1.35
 
   const summary = useMemo(() => {
     const max = (pick: (row: Point) => number) =>
@@ -689,16 +708,16 @@ export function NodeDetail({ node }: { node: Node }) {
             }
           >
             <div className="h-56 w-full min-w-0 text-muted-foreground">
-              <ResponsiveContainer>
-                <AreaChart data={metricRows} margin={{ top: 6, right: 6, left: -8, bottom: 0 }}>
+              <ResponsiveContainer debounce={140}>
+                <AreaChart data={plotMetrics} margin={{ top: 6, right: 6, left: -8, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`${gradPrefix}-cpu`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={CHART_COLORS[0]} stopOpacity={0.28} />
+                      <stop offset="0%" stopColor={CHART_COLORS[0]} stopOpacity={0.22} />
                       <stop offset="100%" stopColor={CHART_COLORS[0]} stopOpacity={0.01} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid {...CHART_GRID} />
-                  <XAxis {...timeAxis(metricRows, safeHours, lang)} />
+                  <XAxis {...timeAxis(plotMetrics, safeHours, lang)} />
                   <YAxis domain={[0, summary.cpuTop]} ticks={quarters(summary.cpuTop)} unit="%" width={48} {...CHART_AXIS} />
                   <Tooltip
                     cursor={CHART_CURSOR}
@@ -714,6 +733,7 @@ export function NodeDetail({ node }: { node: Node }) {
                     dataKey="cpu"
                     name={t("charts.tabs.cpu")}
                     stroke={CHART_COLORS[0]}
+                    strokeWidth={metricStrokeWidth}
                     fill={`url(#${gradPrefix}-cpu)`}
                     activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[0] }}
                     {...SERIES}
@@ -733,16 +753,16 @@ export function NodeDetail({ node }: { node: Node }) {
             }
           >
             <div className="h-56 w-full min-w-0 text-muted-foreground">
-              <ResponsiveContainer>
-                <AreaChart data={metricRows} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
+              <ResponsiveContainer debounce={140}>
+                <AreaChart data={plotMetrics} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`${gradPrefix}-mem`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={CHART_COLORS[1]} stopOpacity={0.28} />
+                      <stop offset="0%" stopColor={CHART_COLORS[1]} stopOpacity={0.22} />
                       <stop offset="100%" stopColor={CHART_COLORS[1]} stopOpacity={0.01} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid {...CHART_GRID} />
-                  <XAxis {...timeAxis(metricRows, safeHours, lang)} />
+                  <XAxis {...timeAxis(plotMetrics, safeHours, lang)} />
                   <YAxis domain={[0, node.mem_total]} ticks={quarters(node.mem_total)} tickFormatter={axisBytes} width={Y_WIDTH} {...CHART_AXIS} />
                   <Tooltip
                     cursor={CHART_CURSOR}
@@ -761,6 +781,7 @@ export function NodeDetail({ node }: { node: Node }) {
                     dataKey="mem_used"
                     name={t("charts.tabs.mem")}
                     stroke={CHART_COLORS[1]}
+                    strokeWidth={metricStrokeWidth}
                     fill={`url(#${gradPrefix}-mem)`}
                     activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[1] }}
                     {...SERIES}
@@ -783,20 +804,20 @@ export function NodeDetail({ node }: { node: Node }) {
             }
           >
             <div className="h-56 w-full min-w-0 text-muted-foreground">
-              <ResponsiveContainer>
-                <AreaChart data={metricRows} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
+              <ResponsiveContainer debounce={140}>
+                <AreaChart data={plotMetrics} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`${gradPrefix}-net-rx`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={CHART_COLORS[1]} stopOpacity={0.24} />
+                      <stop offset="0%" stopColor={CHART_COLORS[1]} stopOpacity={0.20} />
                       <stop offset="100%" stopColor={CHART_COLORS[1]} stopOpacity={0.01} />
                     </linearGradient>
                     <linearGradient id={`${gradPrefix}-net-tx`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={CHART_COLORS[2]} stopOpacity={0.20} />
+                      <stop offset="0%" stopColor={CHART_COLORS[2]} stopOpacity={0.16} />
                       <stop offset="100%" stopColor={CHART_COLORS[2]} stopOpacity={0.01} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid {...CHART_GRID} />
-                  <XAxis {...timeAxis(metricRows, safeHours, lang)} />
+                  <XAxis {...timeAxis(plotMetrics, safeHours, lang)} />
                   <YAxis domain={[0, summary.rateTop]} ticks={quarters(summary.rateTop)} tickFormatter={axisBytes} unit="/s" width={Y_WIDTH} {...CHART_AXIS} />
                   <Tooltip
                     cursor={CHART_CURSOR}
@@ -812,6 +833,7 @@ export function NodeDetail({ node }: { node: Node }) {
                     dataKey="net_rx"
                     name={t("charts.downlink")}
                     stroke={CHART_COLORS[1]}
+                    strokeWidth={metricStrokeWidth}
                     fill={`url(#${gradPrefix}-net-rx)`}
                     activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[1] }}
                     {...SERIES}
@@ -821,6 +843,7 @@ export function NodeDetail({ node }: { node: Node }) {
                     dataKey="net_tx"
                     name={t("charts.uplink")}
                     stroke={CHART_COLORS[2]}
+                    strokeWidth={metricStrokeWidth}
                     fill={`url(#${gradPrefix}-net-tx)`}
                     activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[2] }}
                     {...SERIES}
@@ -840,16 +863,16 @@ export function NodeDetail({ node }: { node: Node }) {
             }
           >
             <div className="h-56 w-full min-w-0 text-muted-foreground">
-              <ResponsiveContainer>
-                <AreaChart data={metricRows} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
+              <ResponsiveContainer debounce={140}>
+                <AreaChart data={plotMetrics} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`${gradPrefix}-disk`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={CHART_COLORS[4]} stopOpacity={0.28} />
+                      <stop offset="0%" stopColor={CHART_COLORS[4]} stopOpacity={0.22} />
                       <stop offset="100%" stopColor={CHART_COLORS[4]} stopOpacity={0.01} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid {...CHART_GRID} />
-                  <XAxis {...timeAxis(metricRows, safeHours, lang)} />
+                  <XAxis {...timeAxis(plotMetrics, safeHours, lang)} />
                   <YAxis domain={[0, node.disk_total]} ticks={quarters(node.disk_total)} tickFormatter={axisBytes} width={Y_WIDTH} {...CHART_AXIS} />
                   <Tooltip
                     cursor={CHART_CURSOR}
@@ -868,6 +891,7 @@ export function NodeDetail({ node }: { node: Node }) {
                     dataKey="disk_used"
                     name={t("charts.tabs.disk")}
                     stroke={CHART_COLORS[4]}
+                    strokeWidth={metricStrokeWidth}
                     fill={`url(#${gradPrefix}-disk)`}
                     activeDot={{ ...CHART_ACTIVE_DOT, fill: CHART_COLORS[4] }}
                     {...SERIES}

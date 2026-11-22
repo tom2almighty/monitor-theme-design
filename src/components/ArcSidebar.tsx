@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 
 import { ArcThemeEditor, type ArcThemeEditorProps, type AppearanceMode } from "@/components/ArcThemeEditor"
+import { BrandMark } from "@/components/BrandMark"
 import { Dot, Flag } from "@/components/NodeMarks"
 import type { Node } from "@/lib/api"
 import { filterNodes } from "@/lib/filters"
@@ -197,7 +198,7 @@ export function ArcSidebar({
           onClick={onNavigate}
           className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-(--arc-chrome-hover) outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <img src="/favicon.svg" alt="" className="size-4.5 shrink-0" />
+          <BrandMark className="size-5 shrink-0" />
           <span className="min-w-0 truncate text-sm font-semibold tracking-tight">{site}</span>
         </Link>
 

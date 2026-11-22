@@ -4,8 +4,8 @@
 //
 // Nothing imports it, so the bundle never includes it.
 import {
-  axisBytes, axisTop, bytes, compact, cpuName, daysUntil, dayUsage, despike, distro, duration, ewma, metered,
-  monthUsage, osName, pair, periodStart, quarters, timeTicks, uptime, virtName,
+  axisBytes, axisTop, bytes, compact, cpuName, daysUntil, dayUsage, despike, distro, downsampleSeries,
+  duration, ewma, metered, monthUsage, osName, pair, periodStart, quarters, timeTicks, uptime, virtName,
 } from "./format.ts"
 
 let failed = 0
@@ -176,6 +176,27 @@ eq(periodStart("不是日期"), "", "无法解析的起始日")
   // 缺口不更新“上一次”的时间：隔了两个桶再来的样本按两个桶的间隔加权。
   eq(ewma([10, null, 30], [0, 60, 120], 60).map((v) => v === null ? null : Math.round(v)), [10, null, 27], "超时保持缺口，平均跨过它继续")
   eq(ewma([10, 30], [0, 60_000], 60), [10, 30], "离线一小时后从回来的值重新开始")
+}
+
+// downsampleSeries：点密度在预算内原样返回；超长序列按桶均值压缩并保留首尾时间戳。
+{
+  const short = [
+    { ts: 1000, cpu: 10 },
+    { ts: 2000, cpu: 20 },
+    { ts: 3000, cpu: 30 },
+  ]
+  eq(downsampleSeries(short, 10, ["cpu"]), short, "点数未超上限时原样返回")
+
+  const dense = Array.from({ length: 1000 }, (_, i) => ({
+    ts: 1_000_000 + i * 60_000,
+    cpu: i % 2 === 0 ? 20 : 40,
+    mem: 100 + i,
+  }))
+  const reduced = downsampleSeries(dense, 160, ["cpu", "mem"])
+  eq(reduced.length, 160, "超长序列精准压缩到目标点数")
+  eq(reduced[0].ts, dense[0].ts, "保留首点时间戳")
+  eq(reduced[reduced.length - 1].ts, dense[dense.length - 1].ts, "保留尾点时间戳")
+  eq(Math.abs(reduced[80].cpu - 30) <= 5, true, "高频锯齿波动在桶内平滑为均值")
 }
 
 if (failed) {

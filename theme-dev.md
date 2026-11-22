@@ -15,7 +15,15 @@
     └── index.html
 ```
 
-发布时打成 `theme.tar.gz`，解开就是这个目录。
+发布时打成 `theme.tar.gz`，解开就是这个目录。放进 GitHub release 时文件名保持 `theme.tar.gz`：面板的
+「从 GitHub 安装」和一键更新只认仓库最新正式 release（不含预发布和草稿）里这个名字的文件。
+
+hub 安装时会校验 gzip 尾部，不完整的包会被拒绝。发布前用 `gzip -t` 检查一遍，没有输出就是完整的：
+
+```bash
+# 检查压缩流是否写完整，打包脚本没收尾时这里会报错
+gzip -t theme.tar.gz
+```
 
 ### theme.json
 
@@ -31,7 +39,7 @@
 | `url` | 是 | 源码地址。指向 GitHub 仓库时，面板的一键更新从它的 release 取 `theme.tar.gz` |
 | `config` | 可不写 | 数组，站长可调的设置，面板按它画表单。见下文[主题设置](#主题设置) |
 
-少写一个字段时，在面板上传会被拒绝，并指出缺的是哪个；直接放进 hub 的 `--themes` 目录的，主题不会
+少写一个字段时，在面板安装会被拒绝，并指出缺的是哪个；直接放进 hub 的 `--themes` 目录的，主题不会
 出现在列表里，hub 日志里有一条警告。
 
 ### 上限
@@ -41,9 +49,12 @@
 | 整包 | 32 MiB |
 | 解压后总量 | 64 MiB |
 | 单个文件 | 8 MiB |
-| 文件和目录数 | 2000 |
+| 文件和目录数（含路径里隐含的上级目录） | 2000 |
+| 单条路径 | 4096 字节 |
+| tar 结尾之后的填充 | 1 MiB |
 
-只接受普通文件和目录，包里有符号链接等其他类型时拒绝安装。
+只接受普通文件和目录，包里有符号链接等其他类型时拒绝安装。包里记的权限按 umask 022 收窄，装出来的文件
+不会是所有人可写的。
 
 ## 可以用的接口
 
@@ -51,19 +62,99 @@
 
 | 接口 | 用途 |
 |---|---|
-| `GET /api/me` | 站点名、登录状态、公开页开关 |
+| `GET /api/me` | 站点名、登录状态、公开页开关、历史保留天数 |
 | `GET /api/nodes` | 节点列表、实时指标、累计流量 |
 | `GET /api/nodes/{id}/metrics` | 历史指标和延迟记录 |
-| `GET /api/ws` | 每 2 秒推送一次节点快照的 WebSocket |
+| `GET /api/ws` | 每 2 秒推送一次节点快照的 WebSocket，加 `?gzip` 收压缩帧，见下文[推送压缩](#推送压缩) |
 | `GET /api/themes/{short}/config` | 站长在面板里保存的主题设置，见下文[主题设置](#主题设置) |
 
 `metrics` 的三个查询参数都可以省：
 
-- `hours=N`：窗口宽度，默认 6。匿名上限 168，登录后 2160，超出时静默收窄
+- `hours=N`：窗口宽度，默认 6，上限是 `/api/me` 的 `history_days` × 24，登录与匿名相同，超出时静默收窄
 - `points=W`：图表能画下的点数，60–1440。只会让 hub 抽得更稀，不会更密
 - `series=metrics|ping`：只取要画的那一类，另一类占响应的三分之一到三分之二
 
+响应顶层的 `step` 是每个点覆盖的秒数：7 天以内是 60 的倍数，更宽的窗口是 3600 的倍数。
+
+`metrics` 的每一行描述一段时间，`minutes` 是其中有数据的分钟数，满额是 `step` ÷ 60：
+
+- `cpu`、`mem_used`、`swap_used`、`disk_used`、`net_rx` / `net_tx` 是平均值，网速 × `minutes` × 60 就是这段时间的流量
+- `tcp`、`udp`、`procs` 是这段时间内 TCP 连接数、UDP 套接字数、进程数的平均值，取整
+- `cpu_max`、`net_rx_max` / `net_tx_max` 是最高值。短时的测速、CPU 占满在平均值里会被摊薄，要画它到过多高
+  就读这几个
+- `minutes` 不满额，说明这段时间节点有一部分不在线，可以用来画在线率。最后一个点是还没过完的时段，不满额
+  不代表离线
+- agent 的 `--interval` 超过 60 秒时 `minutes` 会偏小，积分出的流量和在线率偏低。累计流量以 `/api/nodes` 为准
+
 延迟监控的名称在响应的 `probes` 里随数据一起返回，匿名可读，画延迟图不需要第二个请求，也不需要登录。
+
+### 时间范围
+
+站长在面板里设的保留天数就是能画多远，`/api/me` 里的 `history_days`（1–365）给出这个数。时间范围的按钮
+按它生成，不要写死：写死的「30 天」遇上只保留 7 天的 hub，会被静默收窄成 7 天，按钮上却还写着 30 天。
+
+```ts
+// 默认主题的做法：小于保留期的整档位，最后加上保留期本身。
+// 保留期比某个整档位多不到四分之一时去掉那一档，
+// 免得「90 天」「92 天」两个按钮并列
+const WINDOWS = [1, 6, 24, 168, 720, 2160]
+const whole = history_days * 24
+const hours = [...WINDOWS.filter((h) => h * 1.25 <= whole), whole]
+```
+
+`ping` 里的记录按站长在面板上排的监控顺序逐个排列，同一个监控的记录按时间先后。按 `task_id` 第一次出现的
+顺序生成曲线，图例和配色就和面板一致。
+
+```ts
+// 每个监控一条线，先后就是面板上的顺序
+const ids = [...new Set(ping.map((p) => p.task_id))]
+```
+
+### 推送压缩
+
+连 `/api/ws?gzip` 时，hub 把每一帧 gzip 后以二进制消息发出，解开就是同一份 JSON。100 台在线节点一帧约
+110 KB，压缩后约 15 KB；页面一直开着时（副屏、监控大屏），hub 的出网流量主要就是这些帧，务必加上。
+
+hub 只看有没有这个参数，不看它的值。两种帧都要能收：旧版 hub 不认这个参数，照发文本帧；站长登录着打开公开页时
+推的是带管理字段的帧，这种帧 hub 一律不压缩，也是文本。
+
+```ts
+// 浏览器没有 DecompressionStream 时不要压缩帧
+const gzip = typeof DecompressionStream === "function" ? "?gzip" : ""
+const scheme = location.protocol === "https:" ? "wss" : "ws"
+const socket = new WebSocket(`${scheme}://${location.host}/api/ws${gzip}`)
+
+// 压缩帧收到的是 Blob（binaryType 保持默认），文本帧是字符串
+const frameText = (data: string | Blob) => {
+  if (typeof data === "string") return data
+  const plain = data.stream().pipeThrough(new DecompressionStream("gzip"))
+  return new Response(plain).text()
+}
+
+// 解压是异步的，后到的帧可能先解完，所以一帧接一帧地处理
+let decoded = Promise.resolve()
+socket.onmessage = (event) => {
+  decoded = decoded
+    .then(async () => {
+      const { nodes } = JSON.parse(await frameText(event.data))
+      // 连接关闭之后才解完的帧丢掉
+      if (socket.readyState !== WebSocket.OPEN) return
+      // ...
+    })
+    .catch((e) => console.warn(e))
+}
+```
+
+默认主题的 `src/lib/api.ts` 也是这样处理的，另外只有解开的帧才重置它的断流计时：一直收到解不开的帧，同样当作
+断流去重连。
+
+### 同时在线的上限
+
+匿名访客的 `/api/ws` 同时最多 1000 条，超出的握手回 503，登录会话的推送不计入。浏览器读不到握手失败的回复内容，
+页面里只会看到连接出错。
+
+收到 503 的页面应退回轮询 `/api/nodes`（官方主题每 5 秒一次），隔一段时间再试 WebSocket。只在断开后重连、
+没有轮询兜底的主题，在满额时会一直停在旧数据上。
 
 ## 到期天数
 
@@ -73,20 +164,65 @@
 显示「N 天后到期」「已过期」用它，不要拿 `expires_at` 按浏览器的时钟自己算。hub 按自己所在时区的日期给
 在线节点顺延到期日；访客在别的时区时，自己算会让在线节点在顺延之前显示几个小时的「已过期」。
 
-hub 1.2.0 及更早没有这个 key，只有这时才按 `expires_at` 自己算。`null` 表示没有到期日，要和「没有这个
-key」分开判断：
+## 离线时长
+
+每个节点还带一个 `last_seen_ago`：按 hub 的时钟算的、距最后一次上报的秒数，从未上报过为 `null`。
+
+节点离线（`online` 为 `false`）时，显示「离线 N 分」用它，不要拿 `last_seen` 去减浏览器的时钟。访客的时钟
+不准时（双系统在东八区常见快或慢 8 小时），自己算会把刚离线的节点显示成离线 8 小时，或者算出负数。
+
+在线节点也带这个值。刚重连、还没上报的节点 `online` 为 `true`，值是断开前那次上报至今的秒数，所以离线时长
+只在 `online` 为 `false` 时显示。
+
+## 价格与付款周期
+
+`currency` 是货币代码，交给 `Intl.NumberFormat` 显示。hub 只检查它是三个大写字母，不核对代码是否真的存在，
+`Intl` 遇到不认识的代码会把代码本身当作符号显示。
 
 ```ts
-// 旧 hub 没有 expires_in，才按浏览器时钟自己算；daysUntil 由主题自己实现
-const days = node.expires_in !== undefined
-  ? node.expires_in
-  : daysUntil(node.expires_at)
+// 地区写死 zh-CN：显示不随访客的浏览器语言变，
+// 美元、港币写作 US$、HK$，日元写作 JP¥，不和人民币的 ¥ 混
+function money(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("zh-CN", {
+      style: "currency",
+      currency,
+      // 最多两位小数，与价格的填写精度一致，日元的小数不会被取整
+      maximumFractionDigits: 2,
+    }).format(amount)
+  } catch {
+    // 旧版 hub 存下的值，可能不是三个字母
+    return `${currency} ${amount.toFixed(2)}`
+  }
+}
+```
+
+`billing_cycle` 是付款周期：
+
+| 值 | 含义 |
+|---|---|
+| `monthly` `quarterly` `semiannual` `yearly` `biennial` `triennial` | 1、3、6、12、24、36 个月 |
+| `<n>m` | 其余长度，`n` 是月数，1–1200，比如 `60m` 是五年 |
+| `once` | 一次性，不续期 |
+
+有名字的长度只会以名字出现，不会出现 `12m`。
+
+```ts
+// 月数；once 是 0，不认识的是 NaN
+function months(cycle: string): number {
+  const named: Record<string, number> = {
+    monthly: 1, quarterly: 3, semiannual: 6,
+    yearly: 12, biennial: 24, triennial: 36,
+  }
+  if (cycle === "once") return 0
+  return named[cycle] ?? Number(/^(\d+)m$/.exec(cycle)?.[1])
+}
 ```
 
 ## 节点分组
 
 `/api/nodes` 和 `/api/ws` 推送的快照里，每个节点带一个 `group`：站长在面板上设的分组名，公开可读，
-空字符串表示未分组。hub 1.2.0 及更早没有这个 key，按空字符串处理。
+空字符串表示未分组。
 
 ```ts
 // 按节点顺序收集用到的分组；旧 hub 没有 group 字段
@@ -101,6 +237,13 @@ const groups = [...new Set(nodes.map((n) => n.group ?? "").filter(Boolean))]
   「未分组」这类标签的取值不要和分组名混在同一个字符串空间里，比如用 `null` 表示全部
 - **分组可能有几十个。** 横排的标签要能滚动或换行
 - 按分组切换时，汇总数字（在线数、流量、网速）跟着这一组算，不要一半跟着分组、一半是全站
+
+## 公开备注
+
+每个节点带一个 `public_remark`：站长在面板上写给访客看的一行说明，最多 100 字，不含换行，空字符串表示
+没有。按纯文本渲染。
+
+站长的私有备注是另一个 key `remark`，访客拿不到，见下文[匿名拿不到什么](#匿名拿不到什么)。
 
 ## 主题设置
 
@@ -148,21 +291,11 @@ const groups = [...new Set(nodes.map((n) => n.group ?? "").filter(Boolean))]
 | `options` | `select` 必需 | `[{ "value": "...", "label": "..." }]`，`value` 是非空字符串，`label` 是字符串、不写就显示 `value` |
 | `min`、`max` | 否 | `number` 的取值范围，面板按它拦下越界的输入 |
 
-`{ "type": "title", "label": "..." }` 是分组标题：只有 `label`，不存值，它后面的设置项归入这一组，第一个
-标题之前的归入「通用」。面板按设置项的多少排版：
+`{ "type": "title", "label": "..." }` 是分组标题：不存值，它后面的设置项归入这一组，第一个标题之前的归入
+「通用」。设置项超过十来个时写分组标题，面板会按组分栏显示。
 
-| 设置项 | 面板里的样子 |
-|---|---|
-| 6 项以内 | 单列，分组标题显示为小标题 |
-| 超过 6 项 | 对话框加宽，两列显示 |
-| 超过 6 项，且分成两组以上 | 左侧列出各组，右侧只显示当前这一组 |
-
-没有设置项的分组标题不算一组。设置项超过十来个时写分组标题，否则站长面对的是一整页看不出归属的选项。
-加分组标题只改 `theme.json`，读取代码不用动：下面的示例代码会跳过分组标题。
-
-面板逐项检查，**不合格的那一项不显示，其余照常**：`key` 重复、`type` 不认识、`default` 与类型不符、
-`label` 或 `help` 不是字符串、`select` 缺选项、分组标题没有 `label` 都算。改完 `theme.json` 装到 hub 上
-打开设置看一眼，缺了哪一项，就是哪一项写错了。
+面板逐项检查，**不合格的那一项不显示，其余照常**。改完 `theme.json` 装到 hub 上打开设置看一眼，缺了哪一项，
+就是哪一项写错了。
 
 ### 读取
 
@@ -178,11 +311,9 @@ GET /api/themes/{short}/config
 
 - 从没保存过：`{}`
 - 公开页关闭时，未登录的请求得到 401，条件和 `/api/nodes` 一样
-- hub 1.2.0 及更早的版本没有这个接口，得到 404
-- 不要求主题已安装，任何 `short` 都能读。开发服务器代理到现成的 hub 时，读到的就是这个主题自己的设置；
-  写入则要求主题已装在这个 hub 上
+- 不要求主题已安装，任何 `short` 都能读
 
-401、404 和网络错误一律按默认值渲染，不要报错，也不要为此显示提示。
+请求失败一律按默认值渲染，不要报错，也不要为此显示提示。
 
 hub 只存改过的项，默认值由主题自己补。这样主题作者在新版本里改了某个默认值，没动过这一项的站点会跟着
 变，改过的站点保持站长的选择。
@@ -271,36 +402,32 @@ export async function saveConfig(values: Record<string, unknown>): Promise<void>
 }
 ```
 
-body 是整个设置对象，会替换已保存的那份，规则和面板相同：
-
-- **只放与默认值不同的项**，站长改回默认值的项要从对象里删掉
-- **先读后写，保留不认识的 key**：面板和其他版本的主题可能存过当前代码不认识的项
-- 值要符合 `theme.json` 里的声明，面板也会读到它们
-- 整个对象不超过 64 KiB，超过得到 413
-- 主题要已装在这个 hub 上，否则得到 400；未登录得到 401
-
-面板上的设置按钮始终都在，两边改的是同一份数据。主题自带的界面只是多一个入口，`theme.json` 里的
-声明仍然要写全。
+body 是整个设置对象，会替换已保存的那份，不超过 64 KiB。主题要已装在这个 hub 上、站长已登录，否则分别得到
+400、401。面板上的设置按钮始终都在，两边改的是同一份数据，`theme.json` 里的声明仍然要写全。
 
 ### 约定
 
-- **`key` 发布后不改名。** 改名等于丢掉站长已经保存的值；含义或类型变了就换一个新 `key`。旧值留在
-  hub 里，不影响显示，但访客仍能读到；站长在面板里点「恢复默认」再保存，会连同这些旧值一起清掉
-- **设置是公开的。** 所有访客都能读到，不要设计让站长填密钥、token 或内网地址的字段。面板的设置
-  对话框里也这样提示站长
+- **`key` 发布后不改名。** 改名等于丢掉站长已经保存的值；含义或类型变了就换一个新 `key`
+- **设置是公开的。** 所有访客都能读到，不要设计让站长填密钥、token 或内网地址的字段
 - **设置管显示，不管权限。** 主题里「不显示价格」只是不画，接口里照样有；要对访客真正隐藏的数据，
   得由 hub 不输出。见下文[匿名拿不到什么](#匿名拿不到什么)
 - **原始 HTML 不进页面。** 文本按纯文本渲染：React 里直接写 `{notice}`，原生 DOM 用 `textContent`。
   公告这类要排版的，可以按 Markdown 渲染，但渲染器必须转义其中的 HTML，链接只放行 `http:`、`https:`、
-  `mailto:`。不要把设置值交给 `innerHTML`、`dangerouslySetInnerHTML` 或 `v-html`
+  `mailto:`。不要把设置值交给 `innerHTML`、`dangerouslySetInnerHTML` 或 `v-html`。节点自己上报的字符串
+  （`os`、`kernel`、`arch`、`virt`、`cpu_name`、`agent_version`）同样如此：它们出自一台没人验证过的机器
 
 ## 匿名拿不到什么
 
-匿名访问 `GET /api/nodes` 只返回公开的节点，响应里没有地址（`ip`、`ipv4`、`ipv6`、`ipv4_pin`、`ipv6_pin`）、
-`hostname`、`remark`、`token` 这些 key：不是空字符串，而是根本不存在。国家只给一个 `country`，手填的
-优先。
+匿名访问 `GET /api/nodes` 只返回公开的节点，响应里没有地址（`ip`、`ipv4`、`ipv6`、`ipv4_pin`、`ipv6_pin`、
+`ipv4_auto`、`ipv6_auto`、`addresses`）、`hostname`、`remark`、`token` 这些 key：不是空字符串，而是根本
+不存在。国家只给一个 `country`，手填的优先。
 
-指标部分走白名单，所以 `boot_id`、`iface`、`net_rx_total`、`net_tx_total` 也只给登录后的面板。
+指标部分走白名单：内核原始计数器 `net_rx_total`、`net_tx_total` 和 `boot_id` 谁都拿不到，`iface` 和地址
+一样只在登录后返回。`metrics` 里的 `total_rx`、`total_tx`、`month_rx`、`month_tx` 由 hub 填入，与顶层同名字段相同。
+
+站长登录后，`/api/nodes` 和 `/api/ws` 返回完整视图：`admin` 为 `true`，包括不公开的节点和上面这些 key，
+`token` 除外：节点凭证不和 agent 上报的内容放在同一份回复里，谁都只能从面板的安装弹窗看到。
+请求同源，浏览器自动带上登录凭据，主题不用额外处理，就能在站长登录时显示 `remark` 这类私有信息。
 
 字段定义以 hub 的源码为准。写主题时按「这个 key 可能不存在」处理。
 
@@ -315,16 +442,79 @@ body 是整个设置对象，会替换已保存的那份，规则和面板相同
 第二种最容易漏。默认主题在渲染入口再检查一次指标是否完整，缺失或格式不对时显示「不可用」，不让一个
 节点的坏数据导致整个页面白屏。
 
+## 接口出错时
+
+hub 的错误回复一律是一行中文纯文本（`Content-Type: text/plain`），可以原样显示给访客，例如公开页关闭时的
+「需要登录后查看」、历史查询过多时的「查询历史的请求太多，稍后再试」。
+
+不是 `text/plain` 的错误回复来自 hub 前面的反代或 CDN，比如 nginx 的 502 页面、Cloudflare 的拦截页。它们的
+内容不要显示出来，按状态码给一句说明。请求没发出去（断网），或者返回 200 却不是 JSON（被代理换成了网页），
+也按同样的办法处理。默认主题 `src/lib/api.ts` 里的 `api()` 就是这么写的，可以直接照抄。
+
+### 页面切回前台
+
+手机会挂起切到后台的页面，并悄悄掐断它的连接。切回来时，WebSocket 可能仍显示已连接却收不到数据；挂起前发出的请求会
+失败，单次失败就报错的主题会闪一下错误提示。处理办法是监听 `visibilitychange`：页面隐藏时关闭 WebSocket、停掉轮询，
+挂起前发出的请求结果一律丢弃；回到前台时立即请求一次 `/api/nodes`，并重新连接 `/api/ws`。默认主题 `src/lib/api.ts`
+里的 `useNodes()` 就是这么写的。
+
 ## 路由
 
 未知路径回落到主题自己的 `dist/index.html`，客户端路由因此可用。`/admin`、`/api`、`/install.sh`、
 `/agent/*` 由 hub 处理，主题覆盖不了。
+
+站长在设置页上传了站点图标时，`/favicon.svg`、`/favicon.ico` 和 `/apple-touch-icon.png` 也由 hub 回答，主题自带的
+同名文件不再生效。页面上要显示站点图标（比如页头的 logo），就引用 `/favicon.svg`，不要内联或换别的文件名，否则站长换了
+图标这里不跟着变。`index.html` 里要原样写 `href="/favicon.svg"`：hub 返回页面时会给它加上版本号，图标一换网址就变，
+浏览器才会换掉标签页上记住的旧图标。
+
+iOS 的书签和「添加到主屏幕」不用 SVG 图标，只认 `apple-touch-icon`。主题要带一张 180×180 的 PNG，放在 `dist/` 根目录
+（Vite 项目放 `public/`），再在 `index.html` 里声明：
+
+```html
+<!-- 固定路径，不要打包进 assets/：带哈希的文件名 hub 替换不了 -->
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+```
+
+iOS 会把透明的地方填成黑色，这张图要用不透明的底色。
 
 <Note warn>
   默认主题用 `/node/{id}` 做详情页。前面有按路径放行的反代或 WAF 时，要把主题的路由前缀加进去：
   从列表点进去只是前端路由切换，刷新详情页才会真正请求这个路径，症状是「点进去正常，一刷新就被拦」。
   写主题时在 README 里列出自己的路由。
 </Note>
+
+## 旧版 hub
+
+上面写的是当前版本。要兼容旧版 hub 时，按下表处理：
+
+| 字段或行为 | 没有的版本 | 怎么处理 |
+|---|---|---|
+| `expires_in` | 1.2.0 及更早 | 按 `expires_at` 用浏览器时钟自己算，见下方代码 |
+| `group` | 1.2.0 及更早 | 按空字符串 |
+| `GET /api/themes/{short}/config` | 1.2.0 及更早 | 得到 404，按默认值 |
+| `net_rx_max`、`net_tx_max` | 1.3.0 及更早 | 只画平均值 |
+| `ping` 按监控顺序排列 | 1.3.0 及更早 | 按时间先后排，监控之间谁先谁后不固定 |
+| `billing_cycle` 的 `<n>m` | 1.3.0 及更早 | 只有带名字的七个值 |
+| 中文错误回复 | 1.3.0 及更早 | 是英文 |
+| 安装时校验 gzip 尾部 | 1.3.0 及更早 | 不校验，所以以前装得上的不完整包，升级 hub 后会被拒绝 |
+| `cpu_max`、`minutes`、`step` | 1.3.1 及更早 | 没有 |
+| `metrics` 里的 `swap_used`、`tcp`、`udp`、`procs` | 1.4.0 及更早 | 没有，这几个只在实时指标里 |
+| `history_days` | 1.3.1 及更早 | 按 7 天处理：那些版本匿名最多只给 168 小时 |
+| `public_remark` | 1.3.1 及更早 | 按空字符串 |
+| `currency` 的格式检查 | 1.3.1 及更早 | 存下的值可能不是三个字母，`Intl` 会抛错，要兜住 |
+| 站点图标 | 1.3.2 及更早 | `/favicon.svg`、`/apple-touch-icon.png` 总是主题自带的那个 |
+| `/api/ws?gzip` | 1.3.2 及更早 | 忽略参数，推文本帧 |
+| `last_seen_ago` | 1.3.2 及更早 | 拿 `last_seen` 和浏览器时钟自己算，`last_seen` 为 0 是从未上报；`null` 同样是从未上报，和没有这个 key 分开判断 |
+
+`expires_in` 为 `null` 表示没有到期日，要和「没有这个 key」分开判断：
+
+```ts
+// 旧 hub 没有 expires_in，才按浏览器时钟自己算；daysUntil 由主题自己实现
+const days = node.expires_in !== undefined
+  ? node.expires_in
+  : daysUntil(node.expires_at)
+```
 
 ## 本地开发
 
@@ -367,16 +557,27 @@ agent 只有 Linux 版。在 macOS 上开发时节点会一直显示离线，要
 [设置](#主题设置)的主题，卡片上多一个设置按钮，保存后公开页刷新即生效。设置存在 hub 的数据库里，
 更新、重装、删掉再装回主题都不会丢，数据库备份里也有。
 
-安装有两种方式：在面板上传 `theme.tar.gz`，或把主题目录直接放进 hub 的 `--themes` 目录（一键脚本部署是
-`/opt/monitor/data/themes/`）。卡片上的「从 GitHub 更新」从 `theme.json` 里 `url` 指向的 GitHub 仓库取
-最新 release，tag 与已装版本相同时不下载。
+已收录的主题可以在[主题站](https://monitor-themes.pages.dev)在线预览，复制安装地址后按下面第一种方式安装。
+
+安装有三种方式：
+
+- 在**主题**页填主题的 GitHub 仓库地址，点「从 GitHub 安装」，hub 下载它最新 release 里的 `theme.tar.gz`。
+  不用先把包下到自己电脑上，也就不会因为没下载完而装不上
+- 在**主题**页上传下载好的 `theme.tar.gz`。要下 release 里名为 `theme.tar.gz` 的文件，不是 Source code
+- 把主题目录直接放进 hub 的 `--themes` 目录（一键脚本部署是 `/opt/monitor/data/themes/`）
+
+前两种都是同名主题整体替换。hub 访问不了 GitHub 时，「从 GitHub 安装」和下面的更新都需要在**设置**页填
+GitHub 代理，见[hub 连不上 GitHub](/reference/faq#hub-连不上-github)；能访问时不用填。
+
+卡片上的「从 GitHub 更新」从 `theme.json` 里 `url` 指向的 GitHub 仓库取最新 release，tag 与已装版本相同时
+不下载。
 
 内置默认主题同样可以就地更新，不用升级 hub：更新会把新版装进 `themes/default/`，此后使用磁盘上的这份，
 卡片上的「内置」标记随之消失；删掉它就回到二进制里的那份。二进制里的默认主题删不掉也改不了，磁盘上的主题
 出问题时总能回落到它。
 
 <Note warn>
-  上传的主题是在访客浏览器里运行的第三方代码，和 hub 同源。安装时的检查只防止写到目录外和占满磁盘，
+  安装的主题是在访客浏览器里运行的第三方代码，和 hub 同源。安装时的检查只防止写到目录外和占满磁盘，
   不检查里面的 JS。只装信得过的来源。
 </Note>
 
@@ -385,3 +586,9 @@ agent 只有 Linux 版。在 macOS 上开发时节点会一直显示离线，要
 [monitor-theme-default](https://github.com/monitor-probe/monitor-theme-default)，React + Vite +
 shadcn/ui，黑白配色。它既是内置默认主题，也是第三方主题的范本：hub 嵌入的和装进 `themes/` 的是同一个
 `theme.tar.gz`。
+
+## 收录到主题站
+
+主题做好、发布 release 后，向 [monitor-probe/themes](https://github.com/monitor-probe/themes) 提一个 PR，在
+`themes.txt` 末尾加一行仓库地址。名称、截图等信息都从 release 里的 `theme.tar.gz` 读取；收录要求和检查方式见
+那个仓库的 README。

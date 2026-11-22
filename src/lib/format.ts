@@ -389,3 +389,37 @@ export function ewma(values: (number | null)[], times: number[], tau: number): (
     return mean
   })
 }
+
+/**
+ * Bucket-averages dense time-series rows down to at most `maxPoints` samples so
+ * long windows (6h / 24h / 7d) stay visually crisp instead of collapsing into
+ * sub-pixel stroke overlap. Preserves exact first/last anchors and returns the
+ * original array untouched when already within budget.
+ */
+export function downsampleSeries<T extends { ts: number }, K extends keyof T>(
+  rows: T[],
+  maxPoints: number,
+  keys: readonly K[],
+): T[] {
+  if (maxPoints < 3 || rows.length <= maxPoints) return rows
+  const out: T[] = [rows[0]]
+  const interior = rows.length - 2
+  const buckets = maxPoints - 2
+  for (let b = 0; b < buckets; b++) {
+    const start = 1 + Math.floor((b * interior) / buckets)
+    const end = Math.max(start + 1, 1 + Math.floor(((b + 1) * interior) / buckets))
+    const count = end - start
+    const base = { ...rows[start + (count >> 1)] }
+    let tsSum = 0
+    for (let i = start; i < end; i++) tsSum += rows[i].ts
+    base.ts = Math.round(tsSum / count)
+    for (const key of keys) {
+      let sum = 0
+      for (let i = start; i < end; i++) sum += Number(rows[i][key])
+      ;(base as Record<K, number>)[key] = sum / count
+    }
+    out.push(base)
+  }
+  out.push(rows[rows.length - 1])
+  return out
+}

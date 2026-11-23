@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { memo, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   Activity,
@@ -102,7 +102,7 @@ function NodeRow({
  * search bar, quick favorite tiles, collapsible group folders in hub order,
  * single-line node tabs, and bottom theme/language/appearance/admin toolbar.
  */
-export function ArcSidebar({
+export const ArcSidebar = memo(function ArcSidebar({
   site,
   nodes,
   activeNodeId,
@@ -397,4 +397,4 @@ export function ArcSidebar({
       </div>
     </div>
   )
-}
+})

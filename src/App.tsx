@@ -53,6 +53,17 @@ const loadMonitor = () => import("@/components/MonitorPage")
 const MonitorPage = lazy(() => loadMonitor().then((module) => ({ default: module.MonitorPage })))
 
 const DARK_MEDIA = matchMedia("(prefers-color-scheme: dark)")
+const LG_MEDIA = matchMedia("(min-width: 1024px)")
+
+function useIsDesktop() {
+  return useSyncExternalStore(
+    (notify) => {
+      LG_MEDIA.addEventListener("change", notify)
+      return () => LG_MEDIA.removeEventListener("change", notify)
+    },
+    () => LG_MEDIA.matches,
+  )
+}
 
 const savedMode = (): AppearanceMode => {
   const saved = localStorage.getItem("theme")
@@ -83,14 +94,16 @@ function useTheme() {
     document.documentElement.classList.toggle("dark", dark)
   }, [dark])
 
+  const choose = useCallback((next: AppearanceMode) => {
+    if (next === "system") localStorage.removeItem("theme")
+    else localStorage.setItem("theme", next)
+    setMode(next)
+  }, [])
+
   return {
     mode,
     dark,
-    choose: (next: AppearanceMode) => {
-      if (next === "system") localStorage.removeItem("theme")
-      else localStorage.setItem("theme", next)
-      setMode(next)
-    },
+    choose,
   }
 }
 
@@ -329,14 +342,12 @@ export default function App() {
     resetToSiteDefaults,
     saveAsSiteDefault,
   } = useAppearanceSettings(dark)
+  const isDesktop = useIsDesktop()
   const [sidebarCollapsed, setSidebarCollapsed] = usePref<boolean>("arc-sidebar-collapsed", false)
-  const [sidebarSettled, setSidebarSettled] = useState(!sidebarCollapsed)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  const updateSidebarCollapsed = useCallback((next: boolean) => {
-    setSidebarSettled(false)
-    setSidebarCollapsed(next)
-  }, [setSidebarCollapsed])
+  const collapseSidebar = useCallback(() => setSidebarCollapsed(true), [setSidebarCollapsed])
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), [])
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
@@ -371,25 +382,19 @@ export default function App() {
     if (me && !me.public_page && !me.authed) location.href = "/admin/"
   }, [me])
 
-  useEffect(() => {
-    if (sidebarCollapsed) return
-    const timer = setTimeout(() => setSidebarSettled(true), 320)
-    return () => clearTimeout(timer)
-  }, [sidebarCollapsed])
-
   // Native Arc shortcut: Cmd+\ or Ctrl+\ toggles the left sidebar on desktop.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
         e.preventDefault()
-        updateSidebarCollapsed(!sidebarCollapsed)
+        setSidebarCollapsed(!sidebarCollapsed)
       } else if (e.key === "Escape" && mobileMenuOpen) {
         setMobileMenuOpen(false)
       }
     }
     addEventListener("keydown", onKey)
     return () => removeEventListener("keydown", onKey)
-  }, [sidebarCollapsed, updateSidebarCollapsed, mobileMenuOpen])
+  }, [sidebarCollapsed, setSidebarCollapsed, mobileMenuOpen])
 
   useEffect(() => {
     stageRef.current?.scrollTo({ top: 0 })
@@ -412,6 +417,41 @@ export default function App() {
     document.title = [selected?.name, site].filter(Boolean).join(" · ")
   }, [selected?.name, site])
 
+  const authed = me?.authed ?? false
+  const themeEditorProps = useMemo(() => ({
+    mode,
+    dark,
+    onModeChange: choose,
+    arcColors: effective.arcColors,
+    onArcColorsChange: setArcColors,
+    arcIntensity: effective.arcIntensity,
+    onArcIntensityChange: setArcIntensity,
+    grainPercent: effective.grainPercent,
+    onGrainChange: setGrainPercent,
+    frostedPercent: effective.frostedPercent,
+    onFrostedChange: setFrostedPercent,
+    hasLocalOverrides,
+    onResetDefaults: resetToSiteDefaults,
+    authed,
+    onSaveSiteDefault: saveAsSiteDefault,
+  }), [
+    mode,
+    dark,
+    choose,
+    effective.arcColors,
+    setArcColors,
+    effective.arcIntensity,
+    setArcIntensity,
+    effective.grainPercent,
+    setGrainPercent,
+    effective.frostedPercent,
+    setFrostedPercent,
+    hasLocalOverrides,
+    resetToSiteDefaults,
+    authed,
+    saveAsSiteDefault,
+  ])
+
   if (!me) return (
     <div className="grid min-h-svh place-items-center p-6 text-sm text-muted-foreground">
       {meError ? (
@@ -427,29 +467,11 @@ export default function App() {
 
   if (!me.public_page && !me.authed) return null
 
-  const themeEditorProps = {
-    mode,
-    dark,
-    onModeChange: choose,
-    arcColors: effective.arcColors,
-    onArcColorsChange: setArcColors,
-    arcIntensity: effective.arcIntensity,
-    onArcIntensityChange: setArcIntensity,
-    grainPercent: effective.grainPercent,
-    onGrainChange: setGrainPercent,
-    frostedPercent: effective.frostedPercent,
-    onFrostedChange: setFrostedPercent,
-    hasLocalOverrides,
-    onResetDefaults: resetToSiteDefaults,
-    authed: me.authed,
-    onSaveSiteDefault: saveAsSiteDefault,
-  }
-
   return (
     <div className="relative min-h-dvh bg-background lg:h-dvh lg:overflow-hidden">
       {/* Native Arc multi-point gradient shell canvas */}
       <div
-        className="pointer-events-none fixed inset-0 z-0 transition-[background-color] duration-300 motion-reduce:transition-none"
+        className="pointer-events-none fixed inset-0 z-0 transform-gpu transition-[background-color] duration-300 motion-reduce:transition-none"
         style={{
           backgroundColor: arcLook.backgroundColor,
           backgroundImage: arcLook.backgroundImage,
@@ -461,7 +483,7 @@ export default function App() {
       {effective.grainPercent > 0 && (
         <div
           className={cn(
-            "pointer-events-none fixed inset-0 z-0 select-none transition-opacity duration-200 motion-reduce:transition-none",
+            "pointer-events-none fixed inset-0 z-0 transform-gpu select-none transition-opacity duration-200 motion-reduce:transition-none",
             dark ? "bg-noise-dark" : "bg-noise-light",
           )}
           style={{
@@ -473,76 +495,21 @@ export default function App() {
 
       {/* Arc Window Shell: inset gradient frame around collapsible sidebar + floating right stage */}
       <div className="relative z-10 flex min-h-dvh flex-col p-2 sm:p-2.5 lg:h-full lg:flex-row lg:overflow-hidden">
-        {/* Desktop left Arc sidebar: smooth width/margin + subtle fade/glide, overflow unlocks once settled */}
-        <aside
-          aria-hidden={sidebarCollapsed}
-          inert={sidebarCollapsed || undefined}
-          onTransitionEnd={(e) => {
-            if (e.target === e.currentTarget && e.propertyName === "width" && !sidebarCollapsed) {
-              setSidebarSettled(true)
-            }
-          }}
-          className={cn(
-            "hidden lg:relative lg:z-40 lg:flex lg:h-full lg:shrink-0 lg:flex-col will-change-[width] transition-[width,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-            sidebarCollapsed
-              ? "pointer-events-none lg:mr-0 lg:w-0 lg:overflow-hidden"
-              : cn("lg:mr-2 lg:w-62", sidebarSettled ? "lg:overflow-visible" : "lg:overflow-hidden"),
-          )}
-        >
-          <div
-            className={cn(
-              "flex h-full min-h-0 w-62 flex-col transition-[opacity,transform] duration-260 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-              sidebarCollapsed ? "opacity-0 -translate-x-2" : "opacity-100 translate-x-0",
-            )}
-          >
-            <ArcSidebar
-              site={site}
-              nodes={sorted}
-              activeNodeId={open}
-              onCollapse={() => updateSidebarCollapsed(true)}
-              prefetchDetail={prefetchDetail}
-              authed={me.authed}
-              mode={mode}
-              onModeChange={choose}
-              themeEditorProps={themeEditorProps}
-            />
-          </div>
-        </aside>
-
-        {/* Mobile fade + gentle glide Arc drawer */}
-        <div
-          aria-hidden={!mobileMenuOpen}
-          inert={!mobileMenuOpen || undefined}
-          className={cn(
-            "fixed inset-0 z-40 flex lg:hidden",
-            !mobileMenuOpen && "pointer-events-none",
-          )}
-        >
-          <div
-            className={cn(
-              "fixed inset-0 bg-black/35 backdrop-blur-xs transition-opacity duration-250 ease-out motion-reduce:transition-none",
-              mobileMenuOpen ? "opacity-100" : "opacity-0",
-            )}
-            onClick={() => setMobileMenuOpen(false)}
-            aria-hidden="true"
-          />
+        {/* Desktop left Arc sidebar: out-of-flow GPU transform/opacity slide beneath the floating stage */}
+        {isDesktop && (
           <aside
-            role="dialog"
-            aria-modal={mobileMenuOpen || undefined}
-            aria-label={t("sidebar.title")}
+            aria-hidden={sidebarCollapsed}
+            inert={sidebarCollapsed || undefined}
             className={cn(
-              "relative z-10 flex h-full w-[min(18rem,84vw)] flex-col overflow-hidden border-r border-(--arc-chrome-border) bg-background shadow-2xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-              mobileMenuOpen ? "translate-x-0 opacity-100" : "-translate-x-5 opacity-0",
+              "absolute inset-y-2.5 left-2.5 z-10 flex w-62 flex-col overflow-hidden will-change-[transform,opacity] transition-[transform,opacity] duration-220 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              sidebarCollapsed ? "pointer-events-none -translate-x-5 opacity-0" : "translate-x-0 opacity-100",
             )}
-            style={{ backgroundColor: arcLook.backgroundColor, backgroundImage: arcLook.backgroundImage }}
           >
             <ArcSidebar
               site={site}
               nodes={sorted}
               activeNodeId={open}
-              onCollapse={() => setMobileMenuOpen(false)}
-              onNavigate={() => setMobileMenuOpen(false)}
-              isMobileDrawer
+              onCollapse={collapseSidebar}
               prefetchDetail={prefetchDetail}
               authed={me.authed}
               mode={mode}
@@ -550,14 +517,60 @@ export default function App() {
               themeEditorProps={themeEditorProps}
             />
           </aside>
-        </div>
+        )}
+
+        {/* Mobile fade + gentle glide Arc drawer */}
+        {!isDesktop && (
+          <div
+            aria-hidden={!mobileMenuOpen}
+            inert={!mobileMenuOpen || undefined}
+            className={cn(
+              "fixed inset-0 z-40 flex",
+              !mobileMenuOpen && "pointer-events-none",
+            )}
+          >
+            <div
+              className={cn(
+                "fixed inset-0 bg-black/35 backdrop-blur-xs transition-opacity duration-250 ease-out motion-reduce:transition-none",
+                mobileMenuOpen ? "opacity-100" : "opacity-0",
+              )}
+              onClick={closeMobileMenu}
+              aria-hidden="true"
+            />
+            <aside
+              role="dialog"
+              aria-modal={mobileMenuOpen || undefined}
+              aria-label={t("sidebar.title")}
+              className={cn(
+                "relative z-10 flex h-full w-[min(18rem,84vw)] flex-col overflow-hidden border-r border-(--arc-chrome-border) bg-background shadow-2xl transition-[transform,opacity] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                mobileMenuOpen ? "translate-x-0 opacity-100" : "-translate-x-5 opacity-0",
+              )}
+              style={{ backgroundColor: arcLook.backgroundColor, backgroundImage: arcLook.backgroundImage }}
+            >
+              <ArcSidebar
+                site={site}
+                nodes={sorted}
+                activeNodeId={open}
+                onCollapse={closeMobileMenu}
+                onNavigate={closeMobileMenu}
+                isMobileDrawer
+                prefetchDetail={prefetchDetail}
+                authed={me.authed}
+                mode={mode}
+                onModeChange={choose}
+                themeEditorProps={themeEditorProps}
+              />
+            </aside>
+          </div>
+        )}
 
         {/* Right floating Arc Stage */}
         <div
           ref={stageRef}
           data-slot="arc-stage"
           className={cn(
-            "relative flex min-h-[calc(100dvh-1rem)] min-w-0 flex-1 flex-col rounded-2xl border border-border text-foreground shadow-lg lg:h-full lg:min-h-0 lg:overflow-y-auto",
+            "relative flex min-h-[calc(100dvh-1rem)] min-w-0 flex-1 flex-col rounded-2xl border border-border text-foreground shadow-lg lg:z-20 lg:h-full lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:[contain:layout_style] lg:transition-[margin-left] lg:duration-220 lg:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+            sidebarCollapsed ? "lg:ml-0" : "lg:ml-64",
             effective.frostedPercent > 0 && "backdrop-blur-md",
           )}
           style={{
@@ -585,7 +598,7 @@ export default function App() {
 
               <div
                 className={cn(
-                  "hidden shrink-0 overflow-hidden transition-[width,opacity,margin] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none lg:flex",
+                  "hidden shrink-0 overflow-hidden transition-[width,opacity,margin] duration-220 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none lg:flex",
                   sidebarCollapsed ? "w-8 opacity-100" : "pointer-events-none -mr-2 w-0 opacity-0",
                 )}
                 aria-hidden={!sidebarCollapsed}
@@ -594,7 +607,7 @@ export default function App() {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => updateSidebarCollapsed(false)}
+                  onClick={() => setSidebarCollapsed(false)}
                   aria-label={t("sidebar.expand")}
                   title={t("sidebar.expandShortcut")}
                   className="shrink-0 cursor-pointer"
@@ -687,7 +700,11 @@ export default function App() {
                 >
                   <Languages className="size-3.5" />
                 </Button>
-                <ArcThemeEditor {...themeEditorProps} placement="topbar" />
+                <ArcThemeEditor
+                  {...themeEditorProps}
+                  placement="topbar"
+                  parentOpen={!isDesktop || sidebarCollapsed}
+                />
                 <a
                   href="/admin/"
                   title={me.authed ? t("common.admin") : t("common.login")}

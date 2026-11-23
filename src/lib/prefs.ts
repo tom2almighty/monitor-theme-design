@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useState } from "react"
 
 // Prefixed: the panel at `/admin/` shares this origin's storage, and `theme` is
 // already a key the two apps agree on.
@@ -25,15 +25,13 @@ export function readPref<T extends boolean | number | string>(name: string, init
  */
 export function usePref<T extends boolean | number | string>(name: string, initial: T) {
   const [value, setValue] = useState<T>(() => readPref(name, initial))
-  return [
-    value,
-    (next: T) => {
-      try {
-        localStorage.setItem(PREFIX + name, JSON.stringify(next))
-      } catch {
-        // Storage full or disabled: the setting holds for this page.
-      }
-      setValue(next)
-    },
-  ] as const
+  const update = useCallback((next: T) => {
+    try {
+      localStorage.setItem(PREFIX + name, JSON.stringify(next))
+    } catch {
+      // Storage full or disabled: the setting holds for this page.
+    }
+    setValue(next)
+  }, [name])
+  return [value, update] as const
 }

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react"
+import { lazy, memo, Suspense } from "react"
 
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Node } from "@/lib/api"
@@ -34,10 +34,10 @@ function DetailSkeleton() {
 /**
  * Single-server telemetry studio rendered inside the Arc main stage.
  */
-export function MonitorPage({ selected }: { selected: Node }) {
+export const MonitorPage = memo(function MonitorPage({ selected }: { selected: Node }) {
   return (
     <Suspense fallback={<DetailSkeleton />}>
       <NodeDetail node={selected} />
     </Suspense>
   )
-}
+})

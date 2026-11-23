@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Activity, ArrowDown, ArrowUp, Cpu, MemoryStick, Network } from "lucide-react"
 
@@ -96,7 +96,7 @@ function TrafficSplitBar({ rx, tx }: { rx: number; tx: number }) {
  * Fleet Telemetry Overview (`/`):
  * compact group filter & live pulse strip + 4 aligned KPI tiles + 4 Arc-styled charts.
  */
-export function OverviewDashboard({ nodes }: { nodes: Node[] }) {
+export const OverviewDashboard = memo(function OverviewDashboard({ nodes }: { nodes: Node[] }) {
   const { t } = useTranslation()
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [bwSeries, setBwSeries] = useState<{ scope: string | null; samples: LiveBandwidthSample[] }>({
@@ -343,7 +343,7 @@ export function OverviewDashboard({ nodes }: { nodes: Node[] }) {
       </Suspense>
     </div>
   )
-}
+})
 
 function ChartsSkeleton() {
   return (

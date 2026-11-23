@@ -335,7 +335,7 @@ export function Latency({
           {shownProbes.length === 0 ? (
             <p className="py-8 text-center text-sm">{t("charts.noProbeSelected")}</p>
           ) : (
-            <ResponsiveContainer debounce={140}>
+            <ResponsiveContainer debounce={260}>
               <ComposedChart data={pingRows} margin={{ top: 6, right: 8, left: -6, bottom: 0 }}>
                 <CartesianGrid {...CHART_GRID} />
                 <XAxis {...timeAxis(pingRows, hours, lang, from, to)} />
@@ -708,7 +708,7 @@ export function NodeDetail({ node }: { node: Node }) {
             }
           >
             <div className="h-56 w-full min-w-0 text-muted-foreground">
-              <ResponsiveContainer debounce={140}>
+              <ResponsiveContainer debounce={260}>
                 <AreaChart data={plotMetrics} margin={{ top: 6, right: 6, left: -8, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`${gradPrefix}-cpu`} x1="0" y1="0" x2="0" y2="1">
@@ -753,7 +753,7 @@ export function NodeDetail({ node }: { node: Node }) {
             }
           >
             <div className="h-56 w-full min-w-0 text-muted-foreground">
-              <ResponsiveContainer debounce={140}>
+              <ResponsiveContainer debounce={260}>
                 <AreaChart data={plotMetrics} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`${gradPrefix}-mem`} x1="0" y1="0" x2="0" y2="1">
@@ -804,7 +804,7 @@ export function NodeDetail({ node }: { node: Node }) {
             }
           >
             <div className="h-56 w-full min-w-0 text-muted-foreground">
-              <ResponsiveContainer debounce={140}>
+              <ResponsiveContainer debounce={260}>
                 <AreaChart data={plotMetrics} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`${gradPrefix}-net-rx`} x1="0" y1="0" x2="0" y2="1">
@@ -863,7 +863,7 @@ export function NodeDetail({ node }: { node: Node }) {
             }
           >
             <div className="h-56 w-full min-w-0 text-muted-foreground">
-              <ResponsiveContainer debounce={140}>
+              <ResponsiveContainer debounce={260}>
                 <AreaChart data={plotMetrics} margin={{ top: 6, right: 6, left: -4, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`${gradPrefix}-disk`} x1="0" y1="0" x2="0" y2="1">

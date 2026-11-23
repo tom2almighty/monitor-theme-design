@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import {
   ChevronLeft,
@@ -49,6 +50,85 @@ export interface ArcThemeEditorProps {
   onSaveSiteDefault: () => Promise<void>
   /** Controls popover placement: floating beside the Arc sidebar or below the mobile top bar. */
   placement?: "sidebar" | "topbar"
+  /** Automatically dismisses the portaled popover when its host container collapses or hides. */
+  parentOpen?: boolean
+}
+
+interface PanelCoords {
+  left: number
+  top?: number
+  bottom?: number
+  width: number
+  maxHeight: number
+}
+
+const VIEWPORT_EDGE = 12
+const POPOVER_GAP = 8
+const POPOVER_MAX_WIDTH = 344
+const MOBILE_BREAKPOINT = 640
+const DESKTOP_BREAKPOINT = 1024
+
+function sameCoords(a: PanelCoords | null, b: PanelCoords): boolean {
+  return (
+    a !== null &&
+    a.left === b.left &&
+    a.top === b.top &&
+    a.bottom === b.bottom &&
+    a.width === b.width &&
+    a.maxHeight === b.maxHeight
+  )
+}
+
+/**
+ * Computes viewport-clamped fixed coordinates for the theme studio popover so
+ * it stays centered on phones, escapes drawer overflow clipping, and floats
+ * cleanly beside the sidebar or below the top bar on wider screens.
+ */
+function computePanelCoords(
+  trigger: HTMLElement,
+  placement: "sidebar" | "topbar",
+): PanelCoords | null {
+  const rect = trigger.getBoundingClientRect()
+  if (rect.width === 0 && rect.height === 0) return null
+
+  const vw = document.documentElement.clientWidth
+  const vh = window.innerHeight
+  const width = Math.min(POPOVER_MAX_WIDTH, Math.max(240, vw - VIEWPORT_EDGE * 2))
+
+  if (vw < MOBILE_BREAKPOINT) {
+    const left = Math.round((vw - width) / 2)
+    if (placement === "topbar") {
+      const top = Math.max(VIEWPORT_EDGE, Math.min(Math.round(rect.bottom + POPOVER_GAP), vh - 220))
+      const maxHeight = Math.max(200, vh - top - VIEWPORT_EDGE)
+      return { left, top, width, maxHeight }
+    }
+    const rawBottom = Math.round(vh - rect.top + POPOVER_GAP)
+    const bottom = vh - rawBottom - VIEWPORT_EDGE >= 280 ? Math.max(VIEWPORT_EDGE, rawBottom) : VIEWPORT_EDGE
+    const maxHeight = Math.max(200, vh - bottom - VIEWPORT_EDGE)
+    return { left, bottom, width, maxHeight }
+  }
+
+  if (placement === "sidebar" && vw >= DESKTOP_BREAKPOINT) {
+    const asideRect = trigger.closest("aside")?.getBoundingClientRect()
+    const rawLeft = (asideRect ? asideRect.right : rect.right) + 12
+    const left = Math.round(Math.min(Math.max(VIEWPORT_EDGE, rawLeft), vw - width - VIEWPORT_EDGE))
+    const bottom = Math.max(VIEWPORT_EDGE, Math.round(vh - rect.bottom))
+    const maxHeight = Math.max(240, vh - bottom - VIEWPORT_EDGE)
+    return { left, bottom, width, maxHeight }
+  }
+
+  if (placement === "sidebar") {
+    const left = Math.round(Math.min(Math.max(VIEWPORT_EDGE, rect.left), vw - width - VIEWPORT_EDGE))
+    const rawBottom = Math.round(vh - rect.top + POPOVER_GAP)
+    const bottom = vh - rawBottom - VIEWPORT_EDGE >= 280 ? Math.max(VIEWPORT_EDGE, rawBottom) : VIEWPORT_EDGE
+    const maxHeight = Math.max(240, vh - bottom - VIEWPORT_EDGE)
+    return { left, bottom, width, maxHeight }
+  }
+
+  const left = Math.round(Math.min(Math.max(VIEWPORT_EDGE, rect.right - width), vw - width - VIEWPORT_EDGE))
+  const top = Math.max(VIEWPORT_EDGE, Math.round(rect.bottom + POPOVER_GAP))
+  const maxHeight = Math.max(240, vh - top - VIEWPORT_EDGE)
+  return { left, top, width, maxHeight }
 }
 
 const PAD_REACH_RATIO = 0.43
@@ -190,7 +270,7 @@ function ArcColorPad({
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
       className={cn(
-        "relative aspect-square w-full select-none overflow-hidden rounded-xl border border-border touch-none",
+        "relative mx-auto aspect-square w-full max-w-[min(100%,max(13rem,40dvh))] select-none overflow-hidden rounded-xl border border-border touch-none",
         dragging !== null ? "cursor-grabbing" : "cursor-crosshair",
       )}
     >
@@ -614,30 +694,72 @@ export function ArcThemeEditor({
   authed,
   onSaveSiteDefault,
   placement = "topbar",
+  parentOpen = true,
 }: ArcThemeEditorProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [panelStyle, setPanelStyle] = useState<PanelCoords | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<string | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  if (!parentOpen && open) {
+    setOpen(false)
+  }
+  const isOpen = open && parentOpen
+
+  const syncPosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const next = computePanelCoords(trigger, placement)
+    if (!next) {
+      setOpen(false)
+      return
+    }
+    setPanelStyle((prev) => (sameCoords(prev, next) ? prev : next))
+  }, [placement])
+
+  useLayoutEffect(() => {
+    if (!isOpen) return
+    syncPosition()
+  }, [isOpen, syncPosition])
 
   useEffect(() => {
-    if (!open) return
+    if (!isOpen) return
     const handlePointer = (e: PointerEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as globalThis.Node)) {
+      const target = e.target as globalThis.Node
+      if (!triggerRef.current?.contains(target) && !panelRef.current?.contains(target)) {
         setOpen(false)
       }
     }
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false)
+      if (e.key === "Escape") {
+        e.stopPropagation()
+        setOpen(false)
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        setOpen(false)
+      }
+    }
+    const handleReposition = (e: Event) => {
+      if (e.type === "scroll" && panelRef.current?.contains(e.target as globalThis.Node)) {
+        return
+      }
+      syncPosition()
     }
     document.addEventListener("pointerdown", handlePointer)
     document.addEventListener("keydown", handleKey)
+    window.addEventListener("resize", handleReposition, { passive: true })
+    window.addEventListener("scroll", handleReposition, { capture: true, passive: true })
+    window.visualViewport?.addEventListener("resize", handleReposition)
     return () => {
       document.removeEventListener("pointerdown", handlePointer)
       document.removeEventListener("keydown", handleKey)
+      window.removeEventListener("resize", handleReposition)
+      window.removeEventListener("scroll", handleReposition, true)
+      window.visualViewport?.removeEventListener("resize", handleReposition)
     }
-  }, [open])
+  }, [isOpen, syncPosition])
 
   const handleSaveDefault = async () => {
     setSaving(true)
@@ -659,24 +781,19 @@ export function ArcThemeEditor({
       ? `linear-gradient(135deg, ${arcColors[0]}, ${arcColors[arcColors.length - 1]})`
       : arcColors[0]
 
-  const panelPosition =
-    placement === "sidebar"
-      ? "left-0 bottom-full mb-2 lg:left-full lg:bottom-0 lg:mb-0 lg:ml-3"
-      : "right-0 top-full mt-2"
-
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative" ref={triggerRef}>
       {placement === "sidebar" ? (
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
+          aria-expanded={isOpen}
           aria-haspopup="dialog"
           aria-label={t("theme.triggerLabel")}
           title={t("theme.triggerLabel")}
           className={cn(
             "inline-flex h-8 items-center gap-2 rounded-lg px-2 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer",
-            open
+            isOpen
               ? "bg-(--arc-chrome-glass) text-(--arc-chrome-fg) shadow-2xs"
               : "text-(--arc-chrome-fg) hover:bg-(--arc-chrome-hover)",
           )}
@@ -693,12 +810,12 @@ export function ArcThemeEditor({
           variant="ghost"
           size="icon"
           onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
+          aria-expanded={isOpen}
           aria-haspopup="dialog"
           aria-label={t("theme.triggerLabel")}
           className={cn(
             "size-8 rounded-md transition-colors cursor-pointer",
-            open ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
+            isOpen ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground",
           )}
           title={t("theme.triggerLabel")}
         >
@@ -706,14 +823,19 @@ export function ArcThemeEditor({
         </Button>
       )}
 
-      {open && (
+      {isOpen && panelStyle && createPortal(
         <div
+          ref={panelRef}
           role="dialog"
           aria-label={t("theme.triggerLabel")}
-          className={cn(
-            "absolute z-50 w-[min(21.5rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-border bg-popover/95 p-3.5 text-popover-foreground shadow-xl backdrop-blur-xl space-y-3.5",
-            panelPosition,
-          )}
+          style={{
+            left: panelStyle.left,
+            top: panelStyle.top,
+            bottom: panelStyle.bottom,
+            width: panelStyle.width,
+            maxHeight: panelStyle.maxHeight,
+          }}
+          className="fixed z-50 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-popover/95 p-3.5 text-popover-foreground shadow-xl backdrop-blur-xl space-y-3.5"
         >
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -786,7 +908,8 @@ export function ArcThemeEditor({
               </Button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

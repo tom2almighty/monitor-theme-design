@@ -195,7 +195,7 @@ export function OverviewCharts({
               {t("overview.charts.noOnlineNodes")}
             </div>
           ) : (
-            <ResponsiveContainer debounce={140}>
+            <ResponsiveContainer debounce={260}>
               <BarChart
                 data={resourceRows}
                 barGap={4}
@@ -300,7 +300,7 @@ export function OverviewCharts({
               {t("overview.charts.collectingSamples")}
             </div>
           ) : (
-            <ResponsiveContainer debounce={140}>
+            <ResponsiveContainer debounce={260}>
               <AreaChart data={chartBandwidth} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id={`${gradPrefix}-rx`} x1="0" y1="0" x2="0" y2="1">
@@ -435,7 +435,7 @@ export function OverviewCharts({
       >
         <div className="grid min-h-52 grid-cols-1 items-center gap-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
           <div className="relative mx-auto h-40 w-40 shrink-0">
-            <ResponsiveContainer debounce={140}>
+            <ResponsiveContainer debounce={260}>
               <PieChart>
                 <Pie
                   data={pieRows}
